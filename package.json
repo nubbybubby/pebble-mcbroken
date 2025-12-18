@@ -1,0 +1,118 @@
+{
+  "name": "mcbroken-pebble",
+  "author": "nubbybubby",
+  "version": "1.0.0",
+  "private": true,
+  "keywords": [
+    "pebble-app"
+  ],
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
+  "pebble": {
+    "sdkVersion": "3",
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "diorite",
+      "emery"
+    ],
+    "enableMultiJS": true,
+    "capabilities": [
+      "location"
+    ],
+    "projectType": "native",
+    "displayName": "mcbroken",
+    "uuid": "a2c9d9e0-2aa0-4a49-bace-b350cd42ef93",
+    "watchapp": {
+      "watchface": false,
+      "hiddenApp": false,
+      "onlyShownOnCommunication": false
+    },
+    "resources": {
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "IMAGE_ICON",
+          "file": "images/icon.png",
+          "menuIcon": true
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_WORKING",
+          "file": "images/circle.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_BROKEN",
+          "file": "images/x.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_INACTIVE",
+          "file": "images/inac.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_WORKING_HIRES",
+          "file": "images/circle_hires.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_BROKEN_HIRES",
+          "file": "images/x_hires.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_INACTIVE_HIRES",
+          "file": "images/inac_hires.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_WORKING_BW",
+          "file": "images/circle_bw.png",
+          "memoryFormat": "1Bit"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_BROKEN_BW",
+          "file": "images/x_bw.png",
+          "memoryFormat": "1Bit"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_INACTIVE_BW",
+          "file": "images/inac_bw.png",
+          "memoryFormat": "1Bit"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_MCHADIT",
+          "file": "images/mchadit.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_MCHADIT_HIRES",
+          "file": "images/mchadit_hires.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_MCHADIT_BW",
+          "file": "images/mchadit_bw.png",
+          "memoryFormat": "1Bit"
+        }
+      ]
+    },
+    "messageKeys": [
+      "dot",
+      "city",
+      "street",
+      "last_checked",
+      "mc_message",
+      "error",
+      "index",
+      "count",
+      "id"
+    ]
+  }
+}
