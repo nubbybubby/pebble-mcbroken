@@ -16,9 +16,9 @@ let cache_max_age = 60 // seconds
 let cache = [];
 let then = [];
 
-const err_connection_timed_out = "mcConnection timed out."
+const err_connection_timed_out = "McConnection timed out."
 const err_could_not_connect = "Could not connect to mcbroken."
-const err_could_not_parse = "Could not parse mcData."
+const err_corrupt_json = "McJSON is mcbroken."
 const err_no_gps = "Could not get location."
 const err_no_loc_saved = "No locations saved!"
 const err_no_loc_found = "No locations found!"
@@ -78,25 +78,26 @@ function mcRequest(callback) {
     const now = new Date().getTime();
 
     // use ""cache"" if the data is less than a minute old
-    if (cache.length > 0 && now - then < cache_max_age * 1000) {
-        callback(JSON.parse(cache));
-    } else if (cache.length > 0 && now - then >= cache_max_age * 1000) {
+    if (Object.keys(cache).length > 0 && now - then < cache_max_age * 1000) {
+        return callback(cache);
+    } else if (Object.keys(cache).length > 0 && now - then >= cache_max_age * 1000) {
         xhr = undefined;
     }
 
     if (xhr) return;
     xhr = new XMLHttpRequest();
     xhr.timeout = 10000;
+    xhr.responseType = 'json';
     xhr.onload = function() {
         if (xhr && xhr.status === 200 && xhr.readyState === 4) {
             try {
                 then = new Date().getTime();
-                cache = xhr.responseText;
-                callback(JSON.parse(cache));
+                cache = xhr.response;
+                return callback(cache);
             } catch (error) {
                 console.log(error);
+                sendmcError(err_corrupt_json, current_id, true);
                 cache = [];
-                sendmcError(err_could_not_parse, current_id, true);
             }
         }
     };
@@ -254,7 +255,7 @@ function start_mc_gps(id) {
     var gps_options = {
         enableHighAccuracy: false,
         maximumAge: 30000,
-        timeout: 10000
+        timeout: 12000
     };
     
     id_gps = id;
