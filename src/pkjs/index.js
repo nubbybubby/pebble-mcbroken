@@ -9,6 +9,7 @@ var URL = 'https://mcbroken.com/markers.json'
 var xhr;
 var id_gps;
 var current_id;
+var send_id;
 var is_loading;
 
 let cache_max_age = 60 // seconds
@@ -16,10 +17,10 @@ let cache_max_age = 60 // seconds
 let cache = [];
 let then = [];
 
-const err_connection_timed_out = "McConnection timed out."
+const err_connection_timed_out = "mcConnection timed out."
 const err_could_not_connect = "Could not connect to mcbroken."
-const err_json_syntax = "McJSON Syntax Error."
-const err_corrupt_json = "McJSON is mcbroken."
+const err_could_not_parse = "Could not parse mcData."
+const err_json_syntax = "mcJSON Syntax Error."
 const err_no_gps = "Could not get location."
 const err_no_loc_saved = "No locations saved!"
 const err_no_loc_found = "No locations found!"
@@ -38,8 +39,6 @@ const not_found_feature = {
     },
     type: 'Feature'
 };
-
-var send_id;
 
 function mcSend(messages, id) {
     if (id !== undefined) {
@@ -88,19 +87,18 @@ function mcRequest(callback) {
     if (xhr) return;
     xhr = new XMLHttpRequest();
     xhr.timeout = 10000;
-    xhr.responseType = 'json';
     xhr.onload = function() {
         if (xhr && xhr.status === 200 && xhr.readyState === 4) {
             try {
                 then = new Date().getTime();
-                cache = xhr.response;
+                cache = JSON.parse(xhr.responseText);
                 return callback(cache);
             } catch (error) {
                 console.log(error);
                 if (error instanceof SyntaxError) {
                     sendmcError(err_json_syntax, current_id, true);
                 } else {
-                    sendmcError(err_corrupt_json, current_id, true);
+                    sendmcError(err_could_not_parse, current_id, true);
                 }
                 cache = [];
             }
