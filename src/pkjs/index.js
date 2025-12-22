@@ -18,7 +18,7 @@ let then = [];
 
 const err_connection_timed_out = "McConnection timed out."
 const err_could_not_connect = "Could not connect to mcbroken."
-const err_json_syntx = "McJSON Syntax Error."
+const err_json_syntax = "McJSON Syntax Error."
 const err_corrupt_json = "McJSON is mcbroken."
 const err_no_gps = "Could not get location."
 const err_no_loc_saved = "No locations saved!"
@@ -98,7 +98,7 @@ function mcRequest(callback) {
             } catch (error) {
                 console.log(error);
                 if (error instanceof SyntaxError) {
-                    sendmcError(err_json_synt, current_id, true);
+                    sendmcError(err_json_syntax, current_id, true);
                 } else {
                     sendmcError(err_corrupt_json, current_id, true);
                 }
