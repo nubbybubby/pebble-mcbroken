@@ -109,6 +109,7 @@
       "street",
       "last_checked",
       "mc_message",
+      "mc_refresh",
       "error",
       "index",
       "count",

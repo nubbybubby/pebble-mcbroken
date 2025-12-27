@@ -57,30 +57,59 @@ static bool fully_populated() {
     return true;
 }
 
+static void cancel_timers(void) {
+    if (mc_timeout_handle != NULL && is_loading) {
+        app_timer_cancel(mc_timeout_handle);
+        mc_timeout_handle = NULL;
+    }
+
+    if (loading_dots != NULL && is_loading) {
+        app_timer_cancel(loading_dots);
+        loading_dots = NULL;
+    }
+}
+
+static void load_mcdata(void);
+static void start_loading_timers(void *callback_data);
+static void shut_up(void);
+
 /* -- Inbox/Outbox code --- */
 
 static void inbox_received_handler(DictionaryIterator *iterator, void *context) {
     Tuple *mc_message_t = dict_find(iterator, MESSAGE_KEY_mc_message);
-   
+    Tuple *mc_refresh_t = dict_find(iterator, MESSAGE_KEY_mc_refresh);
+
+    if (mc_refresh_t) {
+        if (!mc_menu_selected || !is_ready || is_loading) {
+            return;
+        }
+        if (window_stack_contains_window(mc_restaurant_window)) {
+             window_stack_remove(mc_more_details_window, false);
+             window_stack_remove(mc_restaurant_window, false);
+             window_stack_push(mc_loading_window, true);
+             load_mcdata();
+             light_enable_interaction();
+        } else if (window_stack_contains_window(mc_loading_window)) {
+            if (strcmp(text_layer_get_text(mc_loading_text_layer), "No locations saved!") == 0 ||
+                strcmp(text_layer_get_text(mc_loading_text_layer), "Could not connect to mcbroken.") == 0) {
+                start_loading_timers(window_get_root_layer(mc_loading_window));
+                load_mcdata();
+                light_enable_interaction();
+            }
+        }
+    }
+
     if (!mc_message_t) {
         return;
     }
     
     Tuple *id_t = dict_find(iterator, MESSAGE_KEY_id);
 
-    if (mc_timeout_handle != NULL && is_loading && id_t->value->int16 == id) {
-        app_timer_cancel(mc_timeout_handle);
-        mc_timeout_handle = NULL;
-    }
-
-    if (loading_dots != NULL && is_loading && id_t->value->int16 == id) {
-        app_timer_cancel(loading_dots);
-        loading_dots = NULL;
-    }
-
     if (strcmp(mc_message_t->value->cstring, "mc_ready") == 0) {
         is_ready = true;
     } else if (strcmp(mc_message_t->value->cstring, "mc_data") == 0 && is_loading && id_t->value->int16 == id) {
+        cancel_timers();
+
         Tuple *street_t = dict_find(iterator, MESSAGE_KEY_street);
         Tuple *last_checked_t = dict_find(iterator, MESSAGE_KEY_last_checked);
         Tuple *city_t = dict_find(iterator, MESSAGE_KEY_city);
@@ -96,63 +125,56 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
         }
         
         if (index_t->value->int8 < MAX_MC_COUNT) {
-            if (street_t) {
-                strncpy(mc_structs[index_t->value->int8].STREET, 
-                                        street_t->value->cstring, 
-                                        sizeof(mc_structs[index_t->value->int8].STREET
-                                        ));
-            }
-            if (last_checked_t) {
-                strncpy(mc_structs[index_t->value->int8].LAST_CHECKED, 
-                                        last_checked_t->value->cstring, 
-                                        sizeof(mc_structs[index_t->value->int8].LAST_CHECKED
-                                        ));
-            }
-            if (city_t) {
-                strncpy(mc_structs[index_t->value->int8].CITY, 
-                                        city_t->value->cstring, 
-                                        sizeof(mc_structs[index_t->value->int8].CITY
-                                        ));
-            }
-            if (dot_t) {
-                strncpy(mc_structs[index_t->value->int8].DOT, 
-                                        dot_t->value->cstring, 
-                                        sizeof(mc_structs[index_t->value->int8].DOT
-                                        ));
-            }
+            strncpy(mc_structs[index_t->value->int8].STREET, 
+                                    street_t->value->cstring, 
+                                    sizeof(mc_structs[index_t->value->int8].STREET
+                                    ));
+
+            strncpy(mc_structs[index_t->value->int8].LAST_CHECKED, 
+                                    last_checked_t->value->cstring, 
+                                    sizeof(mc_structs[index_t->value->int8].LAST_CHECKED
+                                    ));
+
+            strncpy(mc_structs[index_t->value->int8].CITY, 
+                                    city_t->value->cstring, 
+                                    sizeof(mc_structs[index_t->value->int8].CITY
+                                    ));
+
+            strncpy(mc_structs[index_t->value->int8].DOT, 
+                                    dot_t->value->cstring, 
+                                    sizeof(mc_structs[index_t->value->int8].DOT
+                                    ));
 
             mc_structs[index_t->value->int8].is_populated = true;
- 
-            snprintf(mc_loaded_buffer, sizeof(mc_loaded_buffer), 
-                "Received %d of %d", index_t->value->int8 + 1, mc_count);
-            text_layer_set_text(mc_loading_text_layer, mc_loaded_buffer);
+            
+            if (window_stack_contains_window(mc_loading_window)) {
+                snprintf(mc_loaded_buffer, sizeof(mc_loaded_buffer), 
+                    "Received %d of %d", index_t->value->int8 + 1, mc_count);
+                text_layer_set_text(mc_loading_text_layer, mc_loaded_buffer);
 
-            if (index_t->value->int8 == mc_count - 1) {
-                if (fully_populated()) {
-                    window_stack_remove(mc_loading_window, false);
-                    window_stack_push(mc_restaurant_window, true);
+                if (index_t->value->int8 == mc_count - 1) {
+                    if (fully_populated()) {
+                        window_stack_remove(mc_loading_window, false);
+                        window_stack_push(mc_restaurant_window, true);
+                    }
                 }
             }
         }
     } else if (strcmp(mc_message_t->value->cstring, "mc_error") == 0 && is_loading && id_t->value->int16 == id) {
+        cancel_timers();
         Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
-        text_layer_set_text(mc_loading_text_layer, error_t->value->cstring);
+        if (window_stack_contains_window(mc_loading_window)) {
+            text_layer_set_text(mc_loading_text_layer, error_t->value->cstring);
+        }
         is_loading = false;
     }
 }
 
 static void outbox_fail_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
     if (window_stack_contains_window(mc_loading_window)) {
-        if (mc_timeout_handle != NULL) {
-            app_timer_cancel(mc_timeout_handle);
-            mc_timeout_handle = NULL;
-        }
-        if (loading_dots != NULL) {
-            app_timer_cancel(loading_dots);
-            loading_dots = NULL;
-        }
+        cancel_timers();
         text_layer_set_text(mc_loading_text_layer, "Failed to send request.");
-        is_loading = false;
+        shut_up();
     }
 }
 
@@ -246,6 +268,9 @@ static void load_mcdata() {
         
         DictionaryIterator *iter;
         app_message_outbox_begin(&iter);
+        
+        srand(time(NULL));
+        id = (rand() % 16967) + 67; // Funny six seven number. Laugh.
 
         dict_write_int(iter, MESSAGE_KEY_id, &id, sizeof(int16_t), true);
 
@@ -262,13 +287,19 @@ static void load_mcdata() {
     }
 }
 
+static void mc_load_selection(void);
+
 static void ready_callback() {
     if (window_stack_contains_window(mc_loading_window)) {
-        if (is_ready) {
-            load_mcdata();
-        } else {
-            app_timer_register(1000, ready_callback, NULL);
-        }
+        mc_load_selection();
+    }
+}
+
+static void mc_load_selection() {
+    if (is_ready) {
+        load_mcdata();
+    } else {
+        app_timer_register(1000, ready_callback, NULL);
     }
 }
 
@@ -276,15 +307,7 @@ static void mc_main_menu_selection_callback(struct MenuLayer *s_menu_layer, Menu
     mc_menu_selected = cell_index->row;
    
     if (connection_service_peek_pebble_app_connection()) {
-        srand(time(NULL));
-        id = (rand() % 16967) + 67; // Funny six seven number. Laugh.
-
-        if (is_ready) {
-            load_mcdata();
-        } else {
-            /* wait one second, then check if it's ready again */
-            app_timer_register(1000, ready_callback, NULL);
-        }
+        mc_load_selection();
     }
 
     window_stack_push(mc_loading_window, true);
@@ -356,11 +379,12 @@ static void mc_more_details_load(Window *window) {
     }
     #endif
 
-    mc_city_text_layer = text_layer_create(GRect(0, offset, bounds.size.w, 30));
-
+    
     #if PBL_DISPLAY_HEIGHT == 168
+    mc_city_text_layer = text_layer_create(GRect(0, offset, bounds.size.w, 30));
     text_layer_set_font(mc_city_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24));
     #elif PBL_DISPLAY_HEIGHT == 228
+    mc_city_text_layer = text_layer_create(GRect(0, offset, bounds.size.w, 40));
     text_layer_set_font(mc_city_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28));
     #endif
 
@@ -486,7 +510,7 @@ static void shut_up() {
 
 static void mc_timeout_callback(void *data) {
     Layer *window_layer = (Layer*)data;
-    if (is_loading) {
+    if (window_stack_contains_window(mc_loading_window)) {
         layer_add_child(window_layer, bitmap_layer_get_layer(mc_timeout_bitmap_layer));
         shut_up();
         mc_timeout_handle = NULL;
@@ -494,14 +518,21 @@ static void mc_timeout_callback(void *data) {
 }
 
 static void loading_text_callback() {
-    if (strlen(dots) < 3) {
-        strncat(dots, ".", 1);
-    } else {
-        memset(&dots, 0, sizeof(dots));
-    }
+    if (window_stack_contains_window(mc_loading_window)) {
+        if (strlen(dots) < 3) {
+            strncat(dots, ".", 1);
+        } else {
+            memset(&dots, 0, sizeof(dots));
+        }
         
-    snprintf(full_load_text, sizeof(full_load_text), "Waiting%s", dots);
-    text_layer_set_text(mc_loading_text_layer, full_load_text);
+        snprintf(full_load_text, sizeof(full_load_text), "Waiting%s", dots);
+        text_layer_set_text(mc_loading_text_layer, full_load_text);
+        loading_dots = app_timer_register(500, loading_text_callback, NULL);
+    }
+}
+
+static void start_loading_timers(void *callback_data) {
+    mc_timeout_handle = app_timer_register(TIMEOUT_SECONDS * 1000, mc_timeout_callback, callback_data);
     loading_dots = app_timer_register(500, loading_text_callback, NULL);
 }
 
@@ -533,8 +564,7 @@ static void mc_loading_screen_load(Window *window) {
 
     if (connection_service_peek_pebble_app_connection()) {
         text_layer_set_text(mc_loading_text_layer, "Waiting");
-        mc_timeout_handle = app_timer_register(TIMEOUT_SECONDS * 1000, mc_timeout_callback, callback_data);
-        loading_dots = app_timer_register(500, loading_text_callback, NULL);
+        start_loading_timers(callback_data);
     } else {
         is_loading = false;
         text_layer_set_text(mc_loading_text_layer, "Phone not connected.");
@@ -551,16 +581,7 @@ static void mc_loading_screen_load(Window *window) {
 }
 
 static void mc_loading_screen_unload(Window *window) {
-    if (mc_timeout_handle != NULL) {
-        app_timer_cancel(mc_timeout_handle);
-        mc_timeout_handle = NULL;
-    }
-
-    if (loading_dots != NULL) {
-        app_timer_cancel(loading_dots);
-        loading_dots = NULL;
-    }
-
+    cancel_timers();
     shut_up();
 
     memset(mc_loaded_buffer, 0, sizeof(mc_loaded_buffer));

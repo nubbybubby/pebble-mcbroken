@@ -20,7 +20,6 @@ let then = [];
 const err_connection_timed_out = "mcConnection timed out."
 const err_could_not_connect = "Could not connect to mcbroken."
 const err_could_not_parse = "Could not parse mcData."
-const err_json_syntax = "mcJSON Syntax Error."
 const err_no_gps = "Could not get location."
 const err_no_loc_saved = "No locations saved!"
 const err_no_loc_found = "No locations found!"
@@ -45,15 +44,16 @@ function mcSend(messages, id) {
         send_id = id;
     }
     
-    if (messages.length === 0 || !is_loading || send_id !== current_id) return;
+    if (messages.length === 0 || !is_loading || send_id !== current_id) return; 
+    setTimeout(() => { 
         message = messages.shift();
         Pebble.sendAppMessage(message, function() {
             mcSend(messages);
         },
         function (e) {
             console.log("I've McFallen! I'm Sorry! I've McFallen!");
-        }
-    );
+        });
+    }, 100);
 }
 
 function shut_up() {
@@ -90,18 +90,15 @@ function mcRequest(callback) {
     xhr.onload = function() {
         if (xhr && xhr.status === 200 && xhr.readyState === 4) {
             try {
-                then = new Date().getTime();
                 cache = JSON.parse(xhr.responseText);
-                return callback(cache);
             } catch (error) {
                 console.log(error);
-                if (error instanceof SyntaxError) {
-                    sendmcError(err_json_syntax, current_id, true);
-                } else {
-                    sendmcError(err_could_not_parse, current_id, true);
-                }
+                sendmcError(err_could_not_parse, current_id, true); 
                 cache = [];
+                return;
             }
+            then = new Date().getTime();
+            return callback(cache);
         }
     };
     xhr.onloadend = function() {
@@ -144,24 +141,36 @@ function format_and_send(result, id) {
     let index = 0;
 
     const message = [];
+    const keys = [ 'dot', 'city', 'street', 'last_checked' ];
     
     result.forEach(feature => {
-        message.push(feature.properties);
-        delete feature.properties.is_broken;
-        delete feature.properties.is_active;
-        delete feature.properties.state;
-        delete feature.properties.country;
+        if (feature.properties) {
+            message.push(feature.properties);
+        } 
+    });
+    
+    const filtered_message = message.map(obj => {
+        const new_message = {};
 
-        feature.properties.mc_message = "mc_data";
-        feature.properties.index = index;
-        feature.properties.count = result.size;
-        feature.properties.id = id;
-
+        keys.forEach(key => {
+            if (obj.hasOwnProperty(key)) {
+                new_message[key] = obj[key];
+            } else {
+                new_message[key] = `no ${[key]}`;
+            }
+        });
+        
+        new_message['mc_message'] = "mc_data";
+        new_message['index'] = index;
+        new_message['count'] = message.length;
+        new_message['id'] = id;
+        
         index++;
+        return new_message;
     });
 
     if (message.length > 0) {
-        mcSend(message, id);
+        mcSend(filtered_message, id);
     } else {
         sendmcError(err_no_loc_found, id); 
     }
@@ -171,8 +180,12 @@ function fetch_mcdata_and_sort_by_saved(id) {
     is_loading = true;
     let max_saved_mc_count = 5
     
-    var settings = JSON.parse(localStorage.getItem("clay-settings"));
-
+    try {
+        var settings = JSON.parse(localStorage.getItem("clay-settings"));
+    } catch (error) {
+        console.log(error);
+    }
+    
     if (!settings) {
         sendmcError(err_no_loc_saved, id);
         return;
@@ -196,6 +209,11 @@ function fetch_mcdata_and_sort_by_saved(id) {
     const streets = streets_input.filter(Boolean);
 
     mcRequest(function(mcdata) {
+        if ('features' in mcdata === false) {
+            format_and_send([], id);
+            return;
+        }
+
         const results = [];
        
         /* This is kinda jank and inefficient. Whatever, it's fast enough */
@@ -203,14 +221,17 @@ function fetch_mcdata_and_sort_by_saved(id) {
         for (let i = 0; i < streets.filter(Boolean).length; i++) {
             has_pushed = false;
             mcdata.features.filter(feature => {
-                if (feature.properties.street.toString().toLowerCase().trim().includes(streets[i])) {
+                if (!feature.properties || !feature.properties.street) return;
+                if (feature.properties.street.toLowerCase().trim().includes(streets[i])) {
                     if (has_pushed || streets[i].length < 4) return;
                     results.push(feature);
                     has_pushed = true;
                 }
             });
             if (!has_pushed) {
-                results.push(structuredClone(not_found_feature));
+                /* I'm doing the parse stringify workaround 
+                    because structuredClone doesn't work in the emulator */
+                results.push(JSON.parse(JSON.stringify(not_found_feature)));
             }
         }
         
@@ -225,10 +246,20 @@ function fetch_mcdata_and_sort_by_location(coords, id) {
     let max_nearby_mc_count = 5
 
     mcRequest(function(mcdata) {
-        mcdata.features.forEach(feature => {
-            feature.geometry.distance = mcCalculateDistance(feature.geometry.coordinates, coords);
-        });
+        if ('features' in mcdata === false) {
+            format_and_send([], id);
+            return;
+        }
 
+        mcdata.features.forEach(feature => {
+            if (feature.geometry && Object.hasOwn(feature.geometry, 'coordinates')) {
+                feature.geometry.distance = mcCalculateDistance(feature.geometry.coordinates, coords);
+            } else {
+                feature['geometry'] = { coordinates: [0,0], type: 'Point' };
+                feature.geometry.distance = mcCalculateDistance([0,0], coords);
+            }
+        });
+        
         const results = mcdata.features.filter(feature => {
             return feature.geometry.distance <= radius;
         }).sort((a, b) => {
@@ -236,7 +267,7 @@ function fetch_mcdata_and_sort_by_location(coords, id) {
         });
         
         const results_sliced = new Set(results.slice(0, max_nearby_mc_count));
-
+    
         format_and_send(results_sliced, id);
     }); 
 }
@@ -279,8 +310,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
     if (e && !e.response) {
         return;
     }
-
+    
     var dict = clay.getSettings(e.response);
+    Pebble.sendAppMessage({ 'mc_refresh': '' });
 });
 
 Pebble.addEventListener("appmessage", function(e) { 
