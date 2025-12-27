@@ -58,12 +58,12 @@ static bool fully_populated() {
 }
 
 static void cancel_timers(void) {
-    if (mc_timeout_handle != NULL && is_loading) {
+    if (mc_timeout_handle != NULL) {
         app_timer_cancel(mc_timeout_handle);
         mc_timeout_handle = NULL;
     }
 
-    if (loading_dots != NULL && is_loading) {
+    if (loading_dots != NULL) {
         app_timer_cancel(loading_dots);
         loading_dots = NULL;
     }
@@ -502,6 +502,11 @@ static void mc_restaurant_window_unload(Window *window) {
 static void shut_up() {
     /* plug our ears and tell the phone to shut up (stop sending app messages, hopefully) */
     is_loading = false;
+
+    if (!is_ready) {
+        return;
+    }
+
     DictionaryIterator *iter;
     app_message_outbox_begin(&iter);
     dict_write_cstring(iter, MESSAGE_KEY_mc_message, "shut_up");
