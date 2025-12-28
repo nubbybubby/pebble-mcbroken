@@ -10,7 +10,6 @@ var xhr;
 var id_gps;
 var current_id;
 var send_id;
-var is_loading;
 
 let cache_max_age = 60 // seconds
 
@@ -44,7 +43,7 @@ function mcSend(messages, id) {
         send_id = id;
     }
     
-    if (messages.length === 0 || !is_loading || send_id !== current_id) return; 
+    if (messages.length === 0 || send_id !== current_id) return;
     setTimeout(() => { 
         message = messages.shift();
         Pebble.sendAppMessage(message, function() {
@@ -53,16 +52,10 @@ function mcSend(messages, id) {
         function (e) {
             console.log("I've McFallen! I'm Sorry! I've McFallen!");
         });
-    }, 100);
-}
-
-function shut_up() {
-    is_loading = false;
-    current_id = 0;
+    }, 50);
 }
 
 function sendmcError(error_message, id, undefine_xhr) {
-    shut_up();
     if (undefine_xhr) {
         xhr = undefined;
     }
@@ -177,7 +170,6 @@ function format_and_send(result, id) {
 }
 
 function fetch_mcdata_and_sort_by_saved(id) {
-    is_loading = true;
     let max_saved_mc_count = 5
     
     try {
@@ -273,21 +265,19 @@ function fetch_mcdata_and_sort_by_location(coords, id) {
 }
 
 function gps_success(pos) {
-    if (!is_loading || id_gps !== current_id) return;
+    if (id_gps !== current_id) return;
     var cur_location = [ pos.coords.latitude, pos.coords.longitude ];
     fetch_mcdata_and_sort_by_location(cur_location, id_gps);
 }
 
 function gps_error(err) {
-    if (!is_loading || id_gps !== current_id) return;
+    if (id_gps !== current_id) return;
     sendmcError(err_no_gps, id_gps);
 }
 
 function start_mc_gps(id) {
-    is_loading = true;
-
     var gps_options = {
-        enableHighAccuracy: false,
+        enableHighAccuracy: true,
         maximumAge: 30000,
         timeout: 12000
     };
@@ -315,7 +305,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     Pebble.sendAppMessage({ 'mc_refresh': '' });
 });
 
-Pebble.addEventListener("appmessage", function(e) { 
+Pebble.addEventListener("appmessage", function(e) {
     current_id = e.payload.id;
     switch (e.payload.mc_message) {
         case "load_mcdata_by_loc":
@@ -323,9 +313,6 @@ Pebble.addEventListener("appmessage", function(e) {
             break;
         case "load_mcdata_by_saved":
             fetch_mcdata_and_sort_by_saved(e.payload.id);
-            break;
-        case "shut_up":
-            shut_up();
             break;
     }
 });

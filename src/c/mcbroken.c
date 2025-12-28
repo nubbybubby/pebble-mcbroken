@@ -1,6 +1,7 @@
 #include <pebble.h>
 
 #define MAX_MC_COUNT 5
+#define IS_READY_RETRY_COUNT 5
 #define TIMEOUT_SECONDS 40
 
 static Window *mc_menu_window;
@@ -39,6 +40,7 @@ static uint16_t id;
 static uint8_t mc_count;
 static uint8_t mc_rest_selected;
 static uint8_t mc_menu_selected;
+static uint8_t retry_count;
 static bool is_loading;
 static bool is_ready;
 
@@ -58,6 +60,8 @@ static bool fully_populated() {
 }
 
 static void cancel_timers(void) {
+    is_ready = true;
+
     if (mc_timeout_handle != NULL) {
         app_timer_cancel(mc_timeout_handle);
         mc_timeout_handle = NULL;
@@ -71,7 +75,6 @@ static void cancel_timers(void) {
 
 static void load_mcdata(void);
 static void start_loading_timers(void *callback_data);
-static void shut_up(void);
 
 /* -- Inbox/Outbox code --- */
 
@@ -152,11 +155,9 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
                     "Received %d of %d", index_t->value->int8 + 1, mc_count);
                 text_layer_set_text(mc_loading_text_layer, mc_loaded_buffer);
 
-                if (index_t->value->int8 == mc_count - 1) {
-                    if (fully_populated()) {
-                        window_stack_remove(mc_loading_window, false);
-                        window_stack_push(mc_restaurant_window, true);
-                    }
+                if (index_t->value->int8 == mc_count - 1 && fully_populated()) {
+                    window_stack_remove(mc_loading_window, false);
+                    window_stack_push(mc_restaurant_window, true);
                 }
             }
         }
@@ -174,7 +175,7 @@ static void outbox_fail_callback(DictionaryIterator *iterator, AppMessageResult 
     if (window_stack_contains_window(mc_loading_window)) {
         cancel_timers();
         text_layer_set_text(mc_loading_text_layer, "Failed to send request.");
-        shut_up();
+        is_loading = false;
     }
 }
 
@@ -262,29 +263,31 @@ static void reset_mcdata() {
 }
 
 static void load_mcdata() {
-    if (!is_loading) {
-        reset_mcdata();
-        is_loading = true;
-        
-        DictionaryIterator *iter;
-        app_message_outbox_begin(&iter);
-        
-        srand(time(NULL));
-        id = (rand() % 16967) + 67; // Funny six seven number. Laugh.
-
-        dict_write_int(iter, MESSAGE_KEY_id, &id, sizeof(int16_t), true);
-
-        switch (mc_menu_selected) {
-            case 0:
-            dict_write_cstring(iter, MESSAGE_KEY_mc_message, "load_mcdata_by_loc");
-                break;
-            case 1:
-            dict_write_cstring(iter, MESSAGE_KEY_mc_message, "load_mcdata_by_saved");
-                break;
-        }
-        
-        app_message_outbox_send();
+    if (is_loading) {
+        return;
     }
+  
+    reset_mcdata();
+    is_loading = true;
+        
+    DictionaryIterator *iter;
+    app_message_outbox_begin(&iter);
+        
+    srand(time(NULL));
+    id = (rand() % 16967) + 67; // Funny six seven number. Laugh.
+
+    dict_write_int(iter, MESSAGE_KEY_id, &id, sizeof(int16_t), true);
+
+    switch (mc_menu_selected) {
+        case 0:
+        dict_write_cstring(iter, MESSAGE_KEY_mc_message, "load_mcdata_by_loc");
+            break; 
+        case 1:
+        dict_write_cstring(iter, MESSAGE_KEY_mc_message, "load_mcdata_by_saved");
+            break;
+    }
+
+    app_message_outbox_send();
 }
 
 static void mc_load_selection(void);
@@ -292,6 +295,13 @@ static void mc_load_selection(void);
 static void ready_callback() {
     if (window_stack_contains_window(mc_loading_window)) {
         mc_load_selection();
+
+        if (retry_count < IS_READY_RETRY_COUNT) {
+            retry_count++;
+            return;
+        }
+        
+        load_mcdata();
     }
 }
 
@@ -305,7 +315,8 @@ static void mc_load_selection() {
 
 static void mc_main_menu_selection_callback(struct MenuLayer *s_menu_layer, MenuIndex *cell_index, void *callback_context) {
     mc_menu_selected = cell_index->row;
-   
+    retry_count = 0;
+
     if (connection_service_peek_pebble_app_connection()) {
         mc_load_selection();
     }
@@ -499,25 +510,11 @@ static void mc_restaurant_window_unload(Window *window) {
     menu_layer_destroy(mc_restaurant_menu_layer);
 }
 
-static void shut_up() {
-    /* plug our ears and tell the phone to shut up (stop sending app messages, hopefully) */
-    is_loading = false;
-
-    if (!is_ready) {
-        return;
-    }
-
-    DictionaryIterator *iter;
-    app_message_outbox_begin(&iter);
-    dict_write_cstring(iter, MESSAGE_KEY_mc_message, "shut_up");
-    app_message_outbox_send();
-}
-
 static void mc_timeout_callback(void *data) {
     Layer *window_layer = (Layer*)data;
     if (window_stack_contains_window(mc_loading_window)) {
         layer_add_child(window_layer, bitmap_layer_get_layer(mc_timeout_bitmap_layer));
-        shut_up();
+        is_loading = false;
         mc_timeout_handle = NULL;
     }
 }
@@ -587,7 +584,8 @@ static void mc_loading_screen_load(Window *window) {
 
 static void mc_loading_screen_unload(Window *window) {
     cancel_timers();
-    shut_up();
+    is_loading = false;
+    id = 0;
 
     memset(mc_loaded_buffer, 0, sizeof(mc_loaded_buffer));
     memset(&dots, 0, sizeof(dots));
