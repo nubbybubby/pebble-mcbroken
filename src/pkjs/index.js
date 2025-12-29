@@ -67,48 +67,54 @@ function sendmcError(error_message, id, undefine_xhr) {
     Pebble.sendAppMessage(message);
 }
 
-function mcRequest(callback) {
-    const now = new Date().getTime();
+function mcRequest() {
+    return new Promise((resolve, reject) => {
+        const now = new Date().getTime();
 
-    // use ""cache"" if the data is less than a minute old
-    if (Object.keys(cache).length > 0 && now - then < cache_max_age * 1000) {
-        return callback(cache);
-    } else if (Object.keys(cache).length > 0 && now - then >= cache_max_age * 1000) {
-        xhr = undefined;
-    }
-
-    if (xhr) return;
-    xhr = new XMLHttpRequest();
-    xhr.timeout = 10000;
-    xhr.onload = function() {
-        if (xhr && xhr.status === 200 && xhr.readyState === 4) {
-            try {
-                cache = JSON.parse(xhr.responseText);
-            } catch (error) {
-                console.log(error);
-                sendmcError(err_could_not_parse, current_id, true); 
-                cache = [];
-                return;
-            }
-            then = new Date().getTime();
-            return callback(cache);
+        // use ""cache"" if the data is less than a minute old
+        if (Object.keys(cache).length > 0 && now - then < cache_max_age * 1000) {
+            resolve(cache);
+        } else if (Object.keys(cache).length > 0 && now - then >= cache_max_age * 1000) {
+            xhr = undefined;
         }
-    };
-    xhr.onloadend = function() {
-        if (xhr && xhr.status == 404) {
+
+        if (xhr) return;
+        xhr = new XMLHttpRequest();
+        xhr.timeout = 10000;
+        xhr.onload = function() {
+            if (xhr && xhr.status === 200 && xhr.readyState === 4) {
+                try {
+                    cache = JSON.parse(xhr.responseText);
+                } catch (error) {
+                    console.log(error);
+                    reject(xhr.status);
+                    sendmcError(err_could_not_parse, current_id, true);
+                    cache = [];
+                    return;
+                }
+                then = new Date().getTime();
+                resolve(cache);
+            }
+        };
+        xhr.onloadend = function() {
+            if (xhr && xhr.status == 404) {
+                reject(xhr.status);
+                sendmcError(err_could_not_connect, current_id, true);
+            }
+        }
+        xhr.onerror = function() {
+            reject(xhr.status);
             sendmcError(err_could_not_connect, current_id, true);
         }
-    }
-    xhr.onerror = function() {
-        sendmcError(err_could_not_connect, current_id, true);
-    }
-    xhr.ontimeout = function() {
-        sendmcError(err_connection_timed_out, current_id, true);
-    }
- 
-    xhr.open('GET', URL, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.send();
+        xhr.ontimeout = function() {
+            reject(xhr.status);
+            sendmcError(err_connection_timed_out, current_id, true);
+        }
+
+        xhr.open('GET', URL, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send();
+    });
 }
 
 function mcCalculateDistance(mc_location, current_loc) {
@@ -200,68 +206,70 @@ function fetch_mcdata_and_sort_by_saved(id) {
     
     const streets = streets_input.filter(Boolean);
 
-    mcRequest(function(mcdata) {
-        if ('features' in mcdata === false) {
-            format_and_send([], id);
-            return;
-        }
-
-        const results = [];
-       
-        /* This is kinda jank and inefficient. Whatever, it's fast enough */
-        let has_pushed;
-        for (let i = 0; i < streets.filter(Boolean).length; i++) {
-            has_pushed = false;
-            mcdata.features.filter(feature => {
-                if (!feature.properties || !feature.properties.street) return;
-                if (feature.properties.street.toLowerCase().trim().includes(streets[i])) {
-                    if (has_pushed || streets[i].length < 4) return;
-                    results.push(feature);
-                    has_pushed = true;
-                }
-            });
-            if (!has_pushed) {
-                /* I'm doing the parse stringify workaround 
-                    because structuredClone doesn't work in the emulator */
-                results.push(JSON.parse(JSON.stringify(not_found_feature)));
+    mcRequest()
+        .then(function(mcdata) {
+            if ('features' in mcdata === false) {
+                format_and_send([], id);
+                return;
             }
-        }
-        
-        const results_sliced = new Set(results.slice(0, max_saved_mc_count));
 
-        format_and_send(results_sliced, id);
-    });
+            const results = [];
+       
+            /* This is kinda jank and inefficient. Whatever, it's fast enough */
+            let has_pushed;
+            for (let i = 0; i < streets.filter(Boolean).length; i++) {
+                has_pushed = false;
+                mcdata.features.filter(feature => {
+                    if (!feature.properties || !feature.properties.street) return;
+                    if (feature.properties.street.toLowerCase().trim().includes(streets[i])) {
+                        if (has_pushed || streets[i].length < 4) return;
+                        results.push(feature);
+                        has_pushed = true;
+                    }
+                });
+                if (!has_pushed) {
+                    /* I'm doing the parse stringify workaround 
+                        because structuredClone doesn't work in the emulator */
+                    results.push(JSON.parse(JSON.stringify(not_found_feature)));
+                }
+            }
+        
+            const results_sliced = new Set(results.slice(0, max_saved_mc_count));
+
+            format_and_send(results_sliced, id);
+        });
 }
 
 function fetch_mcdata_and_sort_by_location(coords, id) {
     let radius = 8.04672
     let max_nearby_mc_count = 5
 
-    mcRequest(function(mcdata) {
-        if ('features' in mcdata === false) {
-            format_and_send([], id);
-            return;
-        }
-
-        mcdata.features.forEach(feature => {
-            if (feature.geometry && Object.hasOwn(feature.geometry, 'coordinates')) {
-                feature.geometry.distance = mcCalculateDistance(feature.geometry.coordinates, coords);
-            } else {
-                feature['geometry'] = { coordinates: [0,0], type: 'Point' };
-                feature.geometry.distance = mcCalculateDistance([0,0], coords);
+    mcRequest()
+        .then(function(mcdata) {
+            if ('features' in mcdata === false) {
+                format_and_send([], id);
+                return;
             }
-        });
+
+            mcdata.features.forEach(feature => {
+                if (feature.geometry && Object.hasOwn(feature.geometry, 'coordinates')) {
+                    feature.geometry.distance = mcCalculateDistance(feature.geometry.coordinates, coords);
+                } else {
+                    feature['geometry'] = { coordinates: [0,0], type: 'Point' };
+                    feature.geometry.distance = mcCalculateDistance([0,0], coords);
+                }
+            });
         
-        const results = mcdata.features.filter(feature => {
-            return feature.geometry.distance <= radius;
-        }).sort((a, b) => {
-            return a.geometry.distance - b.geometry.distance;
-        });
+            const results = mcdata.features.filter(feature => {
+                return feature.geometry.distance <= radius;
+            }).sort((a, b) => {
+                return a.geometry.distance - b.geometry.distance;
+            });
         
-        const results_sliced = new Set(results.slice(0, max_nearby_mc_count));
+            const results_sliced = new Set(results.slice(0, max_nearby_mc_count));
     
-        format_and_send(results_sliced, id);
-    }); 
+            format_and_send(results_sliced, id);
+        });
 }
 
 function gps_success(pos) {
@@ -284,7 +292,10 @@ function start_mc_gps(id) {
     
     id_gps = id;
 
-    navigator.geolocation.getCurrentPosition(gps_success, gps_error, gps_options);
+    mcRequest()
+        .then(function() {
+            navigator.geolocation.getCurrentPosition(gps_success, gps_error, gps_options);
+        });
 }
 
 Pebble.addEventListener('ready', function() {
