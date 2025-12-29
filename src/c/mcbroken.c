@@ -474,20 +474,7 @@ static void mc_restaurant_window_load(Window *window) {
     mc_restaurant_menu_layer = menu_layer_create(bounds);
     
     #if PBL_COLOR
-        menu_layer_set_highlight_colors(mc_restaurant_menu_layer, GColorChromeYellow, GColorBlack);
-        #if PBL_DISPLAY_HEIGHT == 168
-        working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING);
-        broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN);
-        inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE);
-        #elif PBL_DISPLAY_HEIGHT == 228
-        working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING_HIRES);
-        broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN_HIRES);
-        inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE_HIRES);
-        #endif
-    #else
-        working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING_BW);
-        broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN_BW);
-        inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE_BW);
+    menu_layer_set_highlight_colors(mc_restaurant_menu_layer, GColorChromeYellow, GColorBlack);
     #endif
 
     static const MenuLayerCallbacks mc_menu_callbacks = {
@@ -503,7 +490,6 @@ static void mc_restaurant_window_load(Window *window) {
     menu_layer_set_click_config_onto_window(mc_restaurant_menu_layer, window);
     layer_add_child(window_layer, menu_layer_get_layer(mc_restaurant_menu_layer));
 }
-
 
 static void mc_restaurant_window_unload(Window *window) {
     menu_layer_destroy(mc_restaurant_menu_layer);
@@ -540,16 +526,6 @@ static void start_loading_timers(void *callback_data) {
 static void mc_loading_screen_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
-
-    #if PBL_COLOR
-        #if PBL_DISPLAY_HEIGHT == 168
-        mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT);
-        #elif PBL_DISPLAY_HEIGHT == 228
-        mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT_HIRES);
-        #endif
-    #else
-    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT_BW);
-    #endif
 
     mc_timeout_bitmap_layer = bitmap_layer_create(bounds);
     bitmap_layer_set_bitmap(mc_timeout_bitmap_layer, mc_timeout_bitmap);
@@ -591,7 +567,6 @@ static void mc_loading_screen_unload(Window *window) {
 
     text_layer_destroy(mc_loading_text_layer);
     bitmap_layer_destroy(mc_timeout_bitmap_layer);
-    gbitmap_destroy(mc_timeout_bitmap);
 }
 
 static void mc_main_menu_load(Window *window) {
@@ -620,6 +595,27 @@ static void mc_main_menu_load(Window *window) {
 
 static void mc_main_menu_unload(Window *window) {
     menu_layer_destroy(mc_main_menu_layer);
+}
+
+static void set_bitmaps() {
+    #if PBL_COLOR
+    #if PBL_DISPLAY_HEIGHT == 168
+    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT);
+    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING);
+    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN);
+    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE);
+    #elif PBL_DISPLAY_HEIGHT == 228
+    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT_HIRES);
+    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING_HIRES);
+    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN_HIRES);
+    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE_HIRES);
+    #endif
+    #else
+    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT_BW);
+    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING_BW);
+    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN_BW);
+    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE_BW);
+    #endif
 }
 
 static void init() {
@@ -651,6 +647,7 @@ static void init() {
         .unload = mc_more_details_unload
     });
 
+    set_bitmaps();
     window_stack_push(mc_menu_window, true);
     is_ready = false;
     reset_mcdata();
@@ -665,6 +662,12 @@ static void init() {
 
 static void deinit() {
     app_message_deregister_callbacks();
+    
+    gbitmap_destroy(mc_timeout_bitmap);
+    gbitmap_destroy(working_bitmap);
+    gbitmap_destroy(broken_bitmap);
+    gbitmap_destroy(inac_bitmap);
+
     window_destroy(mc_menu_window);
     window_destroy(mc_loading_window);
     window_destroy(mc_restaurant_window);
