@@ -93,8 +93,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
              load_mcdata();
              light_enable_interaction();
         } else if (window_stack_contains_window(mc_loading_window)) {
-            if (strcmp(text_layer_get_text(mc_loading_text_layer), "No locations saved!") == 0 ||
-                strcmp(text_layer_get_text(mc_loading_text_layer), "Could not connect to mcbroken.") == 0) {
+            if (strcmp(text_layer_get_text(mc_loading_text_layer), "No locations saved!") == 0) {
                 start_loading_timers(window_get_root_layer(mc_loading_window));
                 load_mcdata();
                 light_enable_interaction();
