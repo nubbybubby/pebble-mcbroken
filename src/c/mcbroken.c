@@ -41,6 +41,8 @@ static uint8_t mc_count;
 static uint8_t mc_rest_selected;
 static uint8_t mc_menu_selected;
 static uint8_t retry_count;
+
+static bool is_on_error;
 static bool is_loading;
 static bool is_ready;
 
@@ -87,17 +89,15 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
             return;
         }
         if (window_stack_contains_window(mc_restaurant_window)) {
-             window_stack_remove(mc_more_details_window, false);
-             window_stack_remove(mc_restaurant_window, false);
-             window_stack_push(mc_loading_window, true);
-             load_mcdata();
-             light_enable_interaction();
-        } else if (window_stack_contains_window(mc_loading_window)) {
-            if (strcmp(text_layer_get_text(mc_loading_text_layer), "No locations saved!") == 0) {
-                start_loading_timers(window_get_root_layer(mc_loading_window));
-                load_mcdata();
-                light_enable_interaction();
-            }
+            window_stack_remove(mc_more_details_window, false);
+            window_stack_remove(mc_restaurant_window, false);
+            window_stack_push(mc_loading_window, true);
+            load_mcdata();
+            light_enable_interaction();
+        } else if (window_stack_contains_window(mc_loading_window) && is_on_error) {
+            start_loading_timers(window_get_root_layer(mc_loading_window));
+            load_mcdata();
+            light_enable_interaction();
         }
     }
 
@@ -167,6 +167,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
             text_layer_set_text(mc_loading_text_layer, error_t->value->cstring);
         }
         is_loading = false;
+        is_on_error = true;
     }
 }
 
@@ -268,6 +269,7 @@ static void load_mcdata() {
   
     reset_mcdata();
     is_loading = true;
+    is_on_error = false;
         
     DictionaryIterator *iter;
     app_message_outbox_begin(&iter);
@@ -560,6 +562,7 @@ static void mc_loading_screen_load(Window *window) {
 static void mc_loading_screen_unload(Window *window) {
     cancel_timers();
     is_loading = false;
+    is_on_error = false;
     id = 0;
 
     memset(mc_loaded_buffer, 0, sizeof(mc_loaded_buffer));
