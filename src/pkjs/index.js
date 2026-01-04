@@ -319,10 +319,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
 Pebble.addEventListener("appmessage", function(e) {
     current_id = e.payload.id;
     switch (e.payload.mc_message) {
-        case "load_mcdata_by_loc":
+        case 0:
             start_mc_gps(e.payload.id);
             break;
-        case "load_mcdata_by_saved":
+        case 1:
             fetch_mcdata_and_sort_by_saved(e.payload.id);
             break;
     }

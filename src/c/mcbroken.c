@@ -277,16 +277,8 @@ static void load_mcdata() {
     srand(time(NULL));
     id = (rand() % 16967) + 67; // Funny six seven number. Laugh.
 
-    dict_write_int(iter, MESSAGE_KEY_id, &id, sizeof(int16_t), true);
-
-    switch (mc_menu_selected) {
-        case 0:
-        dict_write_cstring(iter, MESSAGE_KEY_mc_message, "load_mcdata_by_loc");
-            break; 
-        case 1:
-        dict_write_cstring(iter, MESSAGE_KEY_mc_message, "load_mcdata_by_saved");
-            break;
-    }
+    dict_write_uint16(iter, MESSAGE_KEY_id, id);
+    dict_write_uint8(iter, MESSAGE_KEY_mc_message, mc_menu_selected);
 
     app_message_outbox_send();
 }
