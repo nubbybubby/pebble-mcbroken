@@ -42,9 +42,9 @@ function mcSend(messages, id) {
     if (id !== undefined) {
         send_id = id;
     }
-    
-    if (messages.length === 0 || send_id !== current_id) return;
-    setTimeout(() => { 
+
+    setTimeout(() => {
+        if (messages.length === 0 || send_id !== current_id) return;
         message = messages.shift();
         Pebble.sendAppMessage(message, function() {
             mcSend(messages);
@@ -64,11 +64,13 @@ function sendmcError(error_message, id, undefine_xhr) {
         'error': error_message,
         'id': id
     };
+    if (id !== current_id) return;
     Pebble.sendAppMessage(message);
+    current_id = 0;
 }
 
 function mcRequest() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const now = new Date().getTime();
 
         // use ""cache"" if the data is less than a minute old
@@ -87,7 +89,6 @@ function mcRequest() {
                     cache = JSON.parse(xhr.responseText);
                 } catch (error) {
                     console.log(error);
-                    reject(xhr.status);
                     sendmcError(err_could_not_parse, current_id, true);
                     cache = [];
                     return;
@@ -98,16 +99,13 @@ function mcRequest() {
         };
         xhr.onloadend = function() {
             if (xhr && xhr.status == 404) {
-                reject(xhr.status);
                 sendmcError(err_could_not_connect, current_id, true);
             }
         }
         xhr.onerror = function() {
-            reject(xhr.status);
             sendmcError(err_could_not_connect, current_id, true);
         }
         xhr.ontimeout = function() {
-            reject(xhr.status);
             sendmcError(err_connection_timed_out, current_id, true);
         }
 
@@ -153,7 +151,7 @@ function format_and_send(result, id) {
 
         keys.forEach(key => {
             if (obj.hasOwnProperty(key)) {
-                new_message[key] = obj[key];
+                new_message[key] = obj[key].toString();
             } else {
                 new_message[key] = `no ${[key]}`;
             }
@@ -208,6 +206,8 @@ function fetch_mcdata_and_sort_by_saved(id) {
 
     mcRequest()
         .then(function(mcdata) {
+            if (id !== current_id) return;
+
             if ('features' in mcdata === false) {
                 format_and_send([], id);
                 return;
@@ -246,6 +246,8 @@ function fetch_mcdata_and_sort_by_location(coords, id) {
 
     mcRequest()
         .then(function(mcdata) {
+            if (id !== current_id) return;
+
             if ('features' in mcdata === false) {
                 format_and_send([], id);
                 return;
@@ -294,6 +296,7 @@ function start_mc_gps(id) {
 
     mcRequest()
         .then(function() {
+            if (id !== current_id) return;
             navigator.geolocation.getCurrentPosition(gps_success, gps_error, gps_options);
         });
 }
