@@ -22,7 +22,7 @@ static TextLayer *mc_working_text_layer;
 
 AppTimer *mc_timeout_handle = NULL;
 AppTimer *loading_dots = NULL;
-AppTimer *vibrate_bl_handle = NULL;
+AppTimer *vibrate_handle = NULL;
 
 static BitmapLayer *mc_timeout_bitmap_layer;
 static GBitmap *mc_timeout_bitmap;
@@ -85,10 +85,9 @@ static void cancel_timers(void) {
     }
 }
 
-static void vibrate_backlight() {
-    if (vibrate_bl_handle == NULL) {
+static void vibrate() {
+    if (vibrate_handle == NULL) {
         vibes_enqueue_custom_pattern(pat);
-        light_enable_interaction();
     }
 }
 
@@ -172,14 +171,15 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
                 text_layer_set_text(mc_loading_text_layer, mc_loaded_buffer);
 
                 if (index_t->value->int8 == mc_count - 1 && fully_populated()) {
-                    vibrate_backlight();
+                    vibrate();
                     window_stack_remove(mc_loading_window, false);
                     window_stack_push(mc_restaurant_window, true);
                 }
             }
         }
     } else if (strcmp(mc_message_t->value->cstring, "mc_error") == 0 && is_loading && id_t->value->int16 == id) {
-        vibrate_backlight();
+        vibrate();
+        light_enable_interaction();
         cancel_timers();
         Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
         if (window_stack_contains_window(mc_loading_window)) {
@@ -495,6 +495,8 @@ static void mc_restaurant_window_load(Window *window) {
     menu_layer_set_click_config_onto_window(mc_restaurant_menu_layer, window);
     layer_add_child(window_layer, text_layer_get_layer(mc_header_text_layer));
     layer_add_child(window_layer, menu_layer_get_layer(mc_restaurant_menu_layer));
+    
+    light_enable_interaction();
 
     if (!mc_menu_selected) {
         text_layer_set_text(mc_header_text_layer, "Nearby locations");
@@ -513,12 +515,12 @@ static void mc_timeout_callback(void *data) {
     if (window_stack_contains_window(mc_loading_window)) {
         layer_add_child(window_layer, bitmap_layer_get_layer(mc_timeout_bitmap_layer));
         is_loading = false;
-        vibrate_backlight();
+        vibrate();
         mc_timeout_handle = NULL;
     }
 }
 
-static void vibrate_bl_callback() { vibrate_bl_handle = NULL; }
+static void vibrate_callback() { vibrate_handle = NULL; }
 
 static void loading_text_callback() {
     if (window_stack_contains_window(mc_loading_window)) {
@@ -536,7 +538,7 @@ static void loading_text_callback() {
 
 static void start_loading_timers(void *callback_data) {
     mc_timeout_handle = app_timer_register(TIMEOUT_SECONDS * 1000, mc_timeout_callback, callback_data);
-    vibrate_bl_handle = app_timer_register(5000, vibrate_bl_callback, NULL);
+    vibrate_handle = app_timer_register(5000, vibrate_callback, NULL);
     loading_dots = app_timer_register(500, loading_text_callback, NULL);
 }
 
@@ -580,9 +582,9 @@ static void mc_loading_screen_unload(Window *window) {
     is_on_error = false;
     id = 0;
     
-    if (vibrate_bl_handle != NULL) {
-        app_timer_cancel(vibrate_bl_handle);
-        vibrate_bl_handle = NULL;
+    if (vibrate_handle != NULL) {
+        app_timer_cancel(vibrate_handle);
+        vibrate_handle = NULL;
     }
     
     if (is_ready && connection_service_peek_pebble_app_connection()) {
