@@ -3,6 +3,7 @@
 #define MAX_MC_COUNT 5
 #define IS_READY_RETRY_COUNT 5
 #define TIMEOUT_SECONDS 40
+#define HEADER_HEIGHT 16
 
 static Window *mc_menu_window;
 static Window *mc_loading_window;
@@ -12,6 +13,7 @@ static Window *mc_more_details_window;
 static MenuLayer *mc_main_menu_layer;
 static MenuLayer *mc_restaurant_menu_layer;
 
+static TextLayer *mc_header_text_layer;
 static TextLayer *mc_loading_text_layer;
 static TextLayer *mc_street_text_layer;
 static TextLayer *mc_city_text_layer;
@@ -199,7 +201,7 @@ static void outbox_fail_callback(DictionaryIterator *iterator, AppMessageResult 
 /* -- menu callback code --- */
 
 static int16_t get_header_height(MenuLayer *menu_layer, uint16_t section_index, void *data) {
-    return 16;
+    return HEADER_HEIGHT;
 }
 
 static int16_t get_cell_height(MenuLayer *menu_layer, MenuIndex *cell_index, void *callback_context) {
@@ -208,17 +210,6 @@ static int16_t get_cell_height(MenuLayer *menu_layer, MenuIndex *cell_index, voi
     #elif PBL_DISPLAY_HEIGHT == 228
     return 54;
     #endif
-}
-
-static void draw_mc_restaurant_header(GContext *ctx, const Layer *cell_layer, uint16_t section_index, void *callback_context) {
-    switch (mc_menu_selected) {
-        case 0:
-        menu_cell_basic_header_draw(ctx, cell_layer, "Nearby locations");
-            break;
-        case 1:
-        menu_cell_basic_header_draw(ctx, cell_layer, "Saved locations");
-            break;
-    }
 }
 
 static uint16_t get_mc_row_callback(struct MenuLayer *s_menu_layer, uint16_t section_index, void *callback_context) {
@@ -399,7 +390,6 @@ static void mc_more_details_load(Window *window) {
     }
     #endif
 
-    
     #if PBL_DISPLAY_HEIGHT == 168
     mc_city_text_layer = text_layer_create(GRect(0, offset, bounds.size.w, 30));
     text_layer_set_font(mc_city_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24));
@@ -474,15 +464,22 @@ static void mc_more_details_unload(Window *window) {
     text_layer_destroy(mc_city_text_layer);
     text_layer_destroy(mc_last_checked_text_layer);
     text_layer_destroy(mc_working_text_layer);
-    mc_rest_selected = 0;
 }
 
 static void mc_restaurant_window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
 
-    mc_restaurant_menu_layer = menu_layer_create(bounds);
-    
+    GRect header_bounds = GRect(2, -1, bounds.size.w, HEADER_HEIGHT);
+    GRect menu_bounds = GRect(0, HEADER_HEIGHT, bounds.size.w, bounds.size.h - HEADER_HEIGHT);
+
+    mc_header_text_layer = text_layer_create(header_bounds);
+    mc_restaurant_menu_layer = menu_layer_create(menu_bounds);
+
+    text_layer_set_text_color(mc_header_text_layer, GColorBlack);
+    text_layer_set_font(mc_header_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
+    text_layer_set_text_alignment(mc_header_text_layer, GTextAlignmentLeft);
+           
     #if PBL_COLOR
     menu_layer_set_highlight_colors(mc_restaurant_menu_layer, GColorChromeYellow, GColorBlack);
     #endif
@@ -492,16 +489,22 @@ static void mc_restaurant_window_load(Window *window) {
         .get_cell_height = get_cell_height,
         .draw_row = draw_mc_row_callback,
         .select_click = mc_restaurant_selection_callback,
-        .draw_header = draw_mc_restaurant_header,
-        .get_header_height = get_header_height
     };
 
     menu_layer_set_callbacks(mc_restaurant_menu_layer, NULL, mc_menu_callbacks);
     menu_layer_set_click_config_onto_window(mc_restaurant_menu_layer, window);
+    layer_add_child(window_layer, text_layer_get_layer(mc_header_text_layer));
     layer_add_child(window_layer, menu_layer_get_layer(mc_restaurant_menu_layer));
+
+    if (!mc_menu_selected) {
+        text_layer_set_text(mc_header_text_layer, "Nearby locations");
+        return;
+    }
+    text_layer_set_text(mc_header_text_layer, "Saved locations");
 }
 
 static void mc_restaurant_window_unload(Window *window) {
+    text_layer_destroy(mc_header_text_layer);
     menu_layer_destroy(mc_restaurant_menu_layer);
 }
 
@@ -533,7 +536,7 @@ static void loading_text_callback() {
 
 static void start_loading_timers(void *callback_data) {
     mc_timeout_handle = app_timer_register(TIMEOUT_SECONDS * 1000, mc_timeout_callback, callback_data);
-    vibrate_bl_handle = app_timer_register(4000, vibrate_bl_callback, NULL);
+    vibrate_bl_handle = app_timer_register(5000, vibrate_bl_callback, NULL);
     loading_dots = app_timer_register(500, loading_text_callback, NULL);
 }
 
@@ -625,27 +628,6 @@ static void mc_main_menu_unload(Window *window) {
     menu_layer_destroy(mc_main_menu_layer);
 }
 
-static void set_bitmaps() {
-    #if PBL_COLOR
-    #if PBL_DISPLAY_HEIGHT == 168
-    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT);
-    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING);
-    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN);
-    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE);
-    #elif PBL_DISPLAY_HEIGHT == 228
-    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT_HIRES);
-    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING_HIRES);
-    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN_HIRES);
-    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE_HIRES);
-    #endif
-    #else
-    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT_BW);
-    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING_BW);
-    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN_BW);
-    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE_BW);
-    #endif
-}
-
 static void init() {
     mc_menu_window = window_create();
     window_set_window_handlers(mc_menu_window, 
@@ -675,7 +657,25 @@ static void init() {
         .unload = mc_more_details_unload
     });
 
-    set_bitmaps();
+    #if PBL_COLOR
+    #if PBL_DISPLAY_HEIGHT == 168
+    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT);
+    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING);
+    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN);
+    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE);
+    #elif PBL_DISPLAY_HEIGHT == 228
+    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT_HIRES);
+    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING_HIRES);
+    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN_HIRES);
+    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE_HIRES);
+    #endif
+    #else
+    mc_timeout_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MCHADIT_BW);
+    working_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_WORKING_BW);
+    broken_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BROKEN_BW);
+    inac_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_INACTIVE_BW);
+    #endif
+
     window_stack_push(mc_menu_window, true);
     is_ready = false;
     reset_mcdata();
