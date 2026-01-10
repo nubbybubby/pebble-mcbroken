@@ -538,7 +538,7 @@ static void loading_text_callback() {
 
 static void start_loading_timers(void *callback_data) {
     mc_timeout_handle = app_timer_register(TIMEOUT_SECONDS * 1000, mc_timeout_callback, callback_data);
-    vibrate_handle = app_timer_register(5000, vibrate_callback, NULL);
+    vibrate_handle = app_timer_register(7000, vibrate_callback, NULL);
     loading_dots = app_timer_register(500, loading_text_callback, NULL);
 }
 
