@@ -100,13 +100,16 @@ function mcRequest() {
         xhr.onloadend = function() {
             if (xhr && xhr.status == 404) {
                 sendmcError(err_could_not_connect, current_id, true);
+                return;
             }
         }
         xhr.onerror = function() {
             sendmcError(err_could_not_connect, current_id, true);
+            return;
         }
         xhr.ontimeout = function() {
             sendmcError(err_connection_timed_out, current_id, true);
+            return;
         }
 
         xhr.open('GET', URL, true);
