@@ -72,8 +72,6 @@ static bool fully_populated() {
 }
 
 static void cancel_timers(void) {
-    is_ready = true;
-
     if (mc_timeout_handle != NULL) {
         app_timer_cancel(mc_timeout_handle);
         mc_timeout_handle = NULL;
@@ -88,6 +86,17 @@ static void cancel_timers(void) {
 static void vibrate() {
     if (vibrate_handle == NULL) {
         vibes_enqueue_custom_pattern(pat);
+    }
+}
+
+static void display_error(char *error_string) {
+    if (window_stack_contains_window(mc_loading_window)) {
+        vibrate();
+        light_enable_interaction();
+        cancel_timers();
+        text_layer_set_text(mc_loading_text_layer, error_string);
+        is_loading = false;
+        is_on_error = true;
     }
 }
 
@@ -126,6 +135,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
     if (strcmp(mc_message_t->value->cstring, "mc_ready") == 0) {
         is_ready = true;
     } else if (strcmp(mc_message_t->value->cstring, "mc_data") == 0 && is_loading && id_t->value->int16 == id) {
+        is_ready = true;
         cancel_timers();
 
         Tuple *street_t = dict_find(iterator, MESSAGE_KEY_street);
@@ -178,24 +188,15 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
             }
         }
     } else if (strcmp(mc_message_t->value->cstring, "mc_error") == 0 && is_loading && id_t->value->int16 == id) {
-        vibrate();
-        light_enable_interaction();
-        cancel_timers();
+        is_ready = true;
         Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
-        if (window_stack_contains_window(mc_loading_window)) {
-            text_layer_set_text(mc_loading_text_layer, error_t->value->cstring);
-        }
-        is_loading = false;
-        is_on_error = true;
+        display_error(error_t->value->cstring);
     }
 }
 
 static void outbox_fail_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
-    if (window_stack_contains_window(mc_loading_window)) {
-        cancel_timers();
-        text_layer_set_text(mc_loading_text_layer, "Failed to send request.");
-        is_loading = false;
-    }
+    is_ready = false;
+    display_error("Failed to send request.");
 }
 
 /* -- menu callback code --- */
@@ -294,14 +295,12 @@ static void mc_load_selection(void);
 
 static void ready_callback() {
     if (window_stack_contains_window(mc_loading_window)) {
-        mc_load_selection();
-
-        if (retry_count < IS_READY_RETRY_COUNT) {
+        if (retry_count < IS_READY_RETRY_COUNT - 1) {
+            mc_load_selection();
             retry_count++;
-            return;
+        } else {
+            load_mcdata();
         }
-        
-        load_mcdata();
     }
 }
 
@@ -516,6 +515,7 @@ static void mc_timeout_callback(void *data) {
         layer_add_child(window_layer, bitmap_layer_get_layer(mc_timeout_bitmap_layer));
         is_loading = false;
         vibrate();
+        light_enable_interaction();
         mc_timeout_handle = NULL;
     }
 }
