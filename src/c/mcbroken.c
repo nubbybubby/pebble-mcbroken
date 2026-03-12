@@ -49,13 +49,13 @@ static bool is_on_error;
 static bool is_loading;
 static bool is_ready;
 
-static char mc_loaded_buffer[20];
+static char mc_loaded_buffer[21];
 static char full_load_text[12];
 static char dots[4];
 
 static mc_struct mc_structs[MAX_MC_COUNT];
 
-static const uint32_t const segments[] = { 75 };
+static const uint32_t segments[] = { 75 };
 
 VibePattern pat = {
     .durations = segments,
@@ -261,10 +261,10 @@ static void draw_mc_menu_header(GContext *ctx, const Layer *cell_layer, uint16_t
 
 static void reset_mcdata() {
     for (int i = 0; i < MAX_MC_COUNT; i++) {
-        memset(&mc_structs->STREET[i], 0, sizeof(&mc_structs->STREET[i]));
-        memset(&mc_structs->LAST_CHECKED[i], 0, sizeof(&mc_structs->LAST_CHECKED[i]));
-        memset(&mc_structs->CITY[i], 0, sizeof(&mc_structs->CITY[i])); 
-        memset(&mc_structs->DOT[i], 0, sizeof(&mc_structs->DOT[i]));
+        memset(&mc_structs->STREET[i], 0, sizeof(mc_structs->STREET[i]));
+        memset(&mc_structs->LAST_CHECKED[i], 0, sizeof(mc_structs->LAST_CHECKED[i]));
+        memset(&mc_structs->CITY[i], 0, sizeof(mc_structs->CITY[i]));
+        memset(&mc_structs->DOT[i], 0, sizeof(mc_structs->DOT[i]));
         mc_structs[i].is_populated = false;
     }
 
@@ -525,7 +525,7 @@ static void vibrate_callback() { vibrate_handle = NULL; }
 static void loading_text_callback() {
     if (window_stack_contains_window(mc_loading_window)) {
         if (strlen(dots) < 3) {
-            strncat(dots, ".", 1);
+            strncat(dots, ".", 2);
         } else {
             memset(&dots, 0, sizeof(dots));
         }
