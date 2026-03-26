@@ -4,7 +4,7 @@ var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
 
 /* This code is an NSFW warning (it sucks) */
 
-var URL = 'https://mcbroken.com/markers.json'
+var URL = 'https://data.mcbroken.com/markers.json'
 
 var xhr;
 var id_gps;
