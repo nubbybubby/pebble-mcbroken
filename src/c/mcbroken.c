@@ -1,6 +1,7 @@
 #include <pebble.h>
 
 #define MAX_MC_COUNT 5
+#define MAX_MC_STAT_COUNT 31
 #define IS_READY_RETRY_COUNT 5
 #define TIMEOUT_SECONDS 40
 #define HEADER_HEIGHT 16
@@ -39,12 +40,20 @@ typedef struct {
     bool is_populated;
 } mc_struct;
 
+typedef struct {
+    char CITY[20];
+    char BROKEN[8];
+    uint8_t TOTAL_LOCATIONS;
+    bool is_populated;
+} mc_stat_struct;
+
 static uint16_t id;
 static uint8_t mc_count;
 static uint8_t mc_rest_selected;
 static uint8_t mc_menu_selected;
 static uint8_t retry_count;
 
+static bool switch_stat_buff;
 static bool is_on_error;
 static bool is_loading;
 static bool is_ready;
@@ -54,6 +63,7 @@ static char full_load_text[12];
 static char dots[4];
 
 static mc_struct mc_structs[MAX_MC_COUNT];
+static mc_stat_struct mc_stat_structs[MAX_MC_STAT_COUNT];
 
 static const uint32_t segments[] = { 75 };
 
@@ -63,10 +73,22 @@ VibePattern pat = {
 };
 
 static bool fully_populated() {
-    for (int i = 0; i < mc_count; i++) {
-        if (!mc_structs[i].is_populated) {
-            return false;
+    switch (mc_menu_selected) {
+        case 0:
+        case 1:
+        for (int i = 0; i < mc_count; i++) {
+            if (!mc_structs[i].is_populated) {
+                return false;
+            } 
         }
+            break;
+        case 2:
+        for (int i = 0; i < mc_count; i++) {
+            if (!mc_stat_structs[i].is_populated) {
+                return false;
+            } 
+        }
+            break;
     }
     return true;
 }
@@ -100,6 +122,21 @@ static void display_error(char *error_string) {
     }
 }
 
+static void loadinator(int8_t index) {
+    /* thanks doofenshmirtz for writing this function :) */
+    if (window_stack_contains_window(mc_loading_window)) {
+        snprintf(mc_loaded_buffer, sizeof(mc_loaded_buffer), 
+            "Received %d of %d", index + 1, mc_count);
+        text_layer_set_text(mc_loading_text_layer, mc_loaded_buffer);
+
+        if (index == mc_count - 1 && fully_populated()) {
+            vibrate();
+            window_stack_remove(mc_loading_window, false);
+            window_stack_push(mc_restaurant_window, true);
+        }
+    }
+}
+
 static void load_mcdata(void);
 static void start_loading_timers(void *callback_data);
 
@@ -130,28 +167,27 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
         return;
     }
     
+    Tuple *city_t = dict_find(iterator, MESSAGE_KEY_city);
     Tuple *id_t = dict_find(iterator, MESSAGE_KEY_id);
+    Tuple *index_t = dict_find(iterator, MESSAGE_KEY_index);
+    Tuple *count_t = dict_find(iterator, MESSAGE_KEY_count);
 
     if (strcmp(mc_message_t->value->cstring, "mc_ready") == 0) {
         is_ready = true;
-    } else if (strcmp(mc_message_t->value->cstring, "mc_data") == 0 && is_loading && id_t->value->int16 == id) {
+    } else if (strcmp(mc_message_t->value->cstring, "mc_marker_data") == 0 && is_loading && id_t->value->int16 == id) {
         is_ready = true;
         cancel_timers();
 
         Tuple *street_t = dict_find(iterator, MESSAGE_KEY_street);
         Tuple *last_checked_t = dict_find(iterator, MESSAGE_KEY_last_checked);
-        Tuple *city_t = dict_find(iterator, MESSAGE_KEY_city);
         Tuple *dot_t = dict_find(iterator, MESSAGE_KEY_dot);
-
-        Tuple *index_t = dict_find(iterator, MESSAGE_KEY_index);
-        Tuple *count_t = dict_find(iterator, MESSAGE_KEY_count);
 
         if (count_t->value->int8 <= MAX_MC_COUNT) {
             mc_count = count_t->value->int8;
         } else {
             mc_count = MAX_MC_COUNT;
         }
-        
+
         if (index_t->value->int8 < MAX_MC_COUNT) {
             strncpy(mc_structs[index_t->value->int8].STREET, 
                                     street_t->value->cstring, 
@@ -175,17 +211,37 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
 
             mc_structs[index_t->value->int8].is_populated = true;
             
-            if (window_stack_contains_window(mc_loading_window)) {
-                snprintf(mc_loaded_buffer, sizeof(mc_loaded_buffer), 
-                    "Received %d of %d", index_t->value->int8 + 1, mc_count);
-                text_layer_set_text(mc_loading_text_layer, mc_loaded_buffer);
+            loadinator(index_t->value->int8);
+        }
+    } else if (strcmp(mc_message_t->value->cstring, "mc_stat_data") == 0 && is_loading && id_t->value->int16 == id) {
+        is_ready = true;
+        cancel_timers();
 
-                if (index_t->value->int8 == mc_count - 1 && fully_populated()) {
-                    vibrate();
-                    window_stack_remove(mc_loading_window, false);
-                    window_stack_push(mc_restaurant_window, true);
-                }
-            }
+        Tuple *broken_t = dict_find(iterator, MESSAGE_KEY_broken);
+        Tuple *total_locations_t = dict_find(iterator, MESSAGE_KEY_total_locations);
+    
+        if (count_t->value->int8 <= MAX_MC_STAT_COUNT) {
+            mc_count = count_t->value->int8;
+        } else {
+            mc_count = MAX_MC_STAT_COUNT;
+        }
+
+        if (index_t->value->int8 < MAX_MC_STAT_COUNT) { 
+             strncpy(mc_stat_structs[index_t->value->int8].CITY, 
+                                          city_t->value->cstring, 
+                                          sizeof(mc_stat_structs[index_t->value->int8].CITY
+                                          ));
+
+            strncpy(mc_stat_structs[index_t->value->int8].BROKEN, 
+                                         broken_t->value->cstring, 
+                                         sizeof(mc_stat_structs[index_t->value->int8].BROKEN
+                                         ));
+                       
+            mc_stat_structs[index_t->value->int8].TOTAL_LOCATIONS = total_locations_t->value->int8;
+
+            mc_stat_structs[index_t->value->int8].is_populated = true;
+ 
+            loadinator(index_t->value->int8);
         }
     } else if (strcmp(mc_message_t->value->cstring, "mc_error") == 0 && is_loading && id_t->value->int16 == id) {
         is_ready = true;
@@ -223,6 +279,12 @@ static void draw_mc_row_callback(GContext *ctx, const Layer *cell_layer, MenuInd
     char *mc_street = mc_structs[cell_index->row].STREET;
     char *mc_dot = mc_structs[cell_index->row].DOT;
 
+    char *mc_stat_city = mc_stat_structs[cell_index->row].CITY;
+    char *mc_stat_broken = mc_stat_structs[cell_index->row].BROKEN;
+
+    char final_mc_dot[30];
+    char final_broken_perc[15];
+
     #if PBL_DISPLAY_HEIGHT == 168
     GRect bitmap_bounds = GRect(5, 25, 15, 15);
     #elif PBL_DISPLAY_HEIGHT == 228
@@ -235,24 +297,56 @@ static void draw_mc_row_callback(GContext *ctx, const Layer *cell_layer, MenuInd
     graphics_context_set_compositing_mode(ctx, 
         menu_cell_layer_is_highlighted(cell_layer) ? GCompOpAssignInverted : GCompOpAssign );
     #endif
-    
-    if (strcmp(mc_dot, "working") == 0) {
-        graphics_draw_bitmap_in_rect(ctx, working_bitmap, bitmap_bounds);
-    } else if (strcmp(mc_dot, "broken") == 0) {
-        graphics_draw_bitmap_in_rect(ctx, broken_bitmap, bitmap_bounds);
-    } else {
-        graphics_draw_bitmap_in_rect(ctx, inac_bitmap, bitmap_bounds);
+
+    switch (mc_menu_selected) {
+        case 0:
+        case 1:
+        
+        if (strcmp(mc_dot, "working") == 0) {
+            graphics_draw_bitmap_in_rect(ctx, working_bitmap, bitmap_bounds);
+        } else if (strcmp(mc_dot, "broken") == 0) {
+            graphics_draw_bitmap_in_rect(ctx, broken_bitmap, bitmap_bounds);
+        } else {
+            graphics_draw_bitmap_in_rect(ctx, inac_bitmap, bitmap_bounds);
+        }
+
+        snprintf(final_mc_dot, sizeof(final_mc_dot), "      %s", mc_dot);
+        menu_cell_basic_draw(ctx, cell_layer, mc_street, final_mc_dot, NULL);
+            break;
+        case 2:
+                
+        if (!cell_index->row) {
+            snprintf(final_mc_dot, sizeof(final_mc_dot), "%s", mc_stat_city);
+        } else {
+            snprintf(final_mc_dot, sizeof(final_mc_dot), "in %s", mc_stat_city);
+        }
+        
+        if (switch_stat_buff && mc_rest_selected == cell_index->row) {
+            snprintf(final_broken_perc, sizeof(final_broken_perc), "%i Locations", mc_stat_structs[cell_index->row].TOTAL_LOCATIONS);
+        } else {
+            snprintf(final_broken_perc, sizeof(final_broken_perc), "%s%%", mc_stat_broken);
+        }
+
+        menu_cell_basic_draw(ctx, cell_layer, final_broken_perc, final_mc_dot, NULL);
+            break;
     }
-
-    char final_mc_dot[18];
-    snprintf(final_mc_dot, sizeof(final_mc_dot), "      %s", mc_dot);
-
-    menu_cell_basic_draw(ctx, cell_layer, mc_street, final_mc_dot, NULL);
 }
 
 static void mc_restaurant_selection_callback(struct MenuLayer *s_menu_layer, MenuIndex *cell_index, void *callback_context) {
     mc_rest_selected = cell_index->row;
-    window_stack_push(mc_more_details_window, true);
+
+    switch (mc_menu_selected) {
+        case 0:
+        case 1:
+        window_stack_push(mc_more_details_window, true);
+            break;
+        case 2:
+        if (mc_stat_structs[cell_index->row].TOTAL_LOCATIONS) {
+            switch_stat_buff = !switch_stat_buff;
+            menu_layer_reload_data(s_menu_layer);
+        }
+            break;
+    }
 }
 
 static void draw_mc_menu_header(GContext *ctx, const Layer *cell_layer, uint16_t section_index, void *callback_context) {
@@ -268,6 +362,14 @@ static void reset_mcdata() {
         mc_structs[i].is_populated = false;
     }
 
+    for (int i = 0; i < MAX_MC_STAT_COUNT; i++) {
+        memset(&mc_stat_structs->CITY[i], 0, sizeof(mc_stat_structs->CITY[i]));
+        memset(&mc_stat_structs->BROKEN[i], 0, sizeof(mc_stat_structs->BROKEN[i]));
+        mc_stat_structs[i].TOTAL_LOCATIONS = 0;
+        mc_stat_structs[i].is_populated = false;
+    }
+    
+    switch_stat_buff = false;
     mc_count = 0;
 }
 
@@ -324,7 +426,7 @@ static void mc_main_menu_selection_callback(struct MenuLayer *s_menu_layer, Menu
 }
 
 static uint16_t get_mc_menu_row_callback(struct MenuLayer *s_menu_layer, uint16_t section_index, void *callback_context) {
-    return 2;
+    return 3;
 }
 
 static void draw_mc_menu_row_callback(GContext *ctx, const Layer *cell_layer, MenuIndex *cell_index, void *callback_context) {
@@ -334,6 +436,9 @@ static void draw_mc_menu_row_callback(GContext *ctx, const Layer *cell_layer, Me
             break;
         case 1:
         menu_cell_basic_draw(ctx, cell_layer, "Saved", NULL, NULL);
+            break;
+        case 2:
+        menu_cell_basic_draw(ctx, cell_layer, "Stats", NULL, NULL);
             break;
     }
 }
@@ -465,6 +570,14 @@ static void mc_more_details_unload(Window *window) {
     text_layer_destroy(mc_working_text_layer);
 }
 
+static void stat_sel_changed_callback(struct MenuLayer *menu_layer, MenuIndex *new_index, MenuIndex old_index, void *callback_context) {
+    if (mc_menu_selected != 2) {
+        return;
+    }
+
+    switch_stat_buff = false;
+}
+
 static void mc_restaurant_window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
@@ -488,6 +601,7 @@ static void mc_restaurant_window_load(Window *window) {
         .get_cell_height = get_cell_height,
         .draw_row = draw_mc_row_callback,
         .select_click = mc_restaurant_selection_callback,
+        .selection_will_change = stat_sel_changed_callback
     };
 
     menu_layer_set_callbacks(mc_restaurant_menu_layer, NULL, mc_menu_callbacks);
@@ -497,11 +611,17 @@ static void mc_restaurant_window_load(Window *window) {
     
     light_enable_interaction();
 
-    if (!mc_menu_selected) {
-        text_layer_set_text(mc_header_text_layer, "Nearby locations");
-        return;
+    switch (mc_menu_selected) {
+        case 0:
+            text_layer_set_text(mc_header_text_layer, "Nearby locations");
+            break;
+        case 1:
+            text_layer_set_text(mc_header_text_layer, "Saved locations");
+            break;
+        case 2:
+            text_layer_set_text(mc_header_text_layer, "Stats");
+            break;
     }
-    text_layer_set_text(mc_header_text_layer, "Saved locations");
 }
 
 static void mc_restaurant_window_unload(Window *window) {

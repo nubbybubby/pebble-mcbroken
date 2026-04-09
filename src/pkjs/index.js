@@ -4,17 +4,23 @@ var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
 
 /* This code is an NSFW warning (it sucks) */
 
-var URL = 'https://data.mcbroken.com/markers.json'
+var URL = 'https://data.mcbroken.com'
+var MARKERS = '/markers.json'
+var STATS = '/stats.json'
 
-var xhr;
+var got_markers_data;
+var got_stats_data;
+
 var id_gps;
 var current_id;
 var send_id;
 
 let cache_max_age = 60 // seconds
 
-let cache = [];
-let then = [];
+let markers_cache = [];
+let stats_cache = [];
+let markers_then = [];
+let stats_then = [];
 
 const err_connection_timed_out = "mcConnection timed out."
 const err_could_not_connect = "Could not connect to mcbroken."
@@ -22,6 +28,11 @@ const err_could_not_parse = "Could not parse mcData."
 const err_no_gps = "Could not get location."
 const err_no_loc_saved = "No locations saved!"
 const err_no_loc_found = "No locations found!"
+
+const request = {
+    type_markers: 0,
+    type_stats: 1
+};
 
 const not_found_feature = {
     geometry: { coordinates: [0,0], type: 'Point' },
@@ -69,20 +80,49 @@ function sendmcError(error_message, id, undefine_xhr) {
     current_id = 0;
 }
 
-function mcRequest() {
-    return new Promise((resolve) => {
+function mcRequest(type) {
+    return new Promise((resolve) => { 
         const now = new Date().getTime();
 
-        // use ""cache"" if the data is less than a minute old
+        let cache = [];
+        let then = [];
+
+        if (!type) {
+            cache = markers_cache;
+            then = markers_then;
+        } else {
+            cache = stats_cache;
+            then = stats_then;
+        }
+
         if (Object.keys(cache).length > 0 && now - then < cache_max_age * 1000) {
             resolve(cache);
         } else if (Object.keys(cache).length > 0 && now - then >= cache_max_age * 1000) {
-            xhr = undefined;
+            if (!type) {
+                got_markers_data = false;
+            } else {
+                got_stats_data = false;
+            }
+        }
+        
+        if (!type) {
+            if (got_markers_data) return;
+        } else {
+            if (got_stats_data) return;
         }
 
-        if (xhr) return;
-        xhr = new XMLHttpRequest();
+        var xhr = new XMLHttpRequest();
         xhr.timeout = 10000;
+
+        if (!type) {
+            xhr.open('GET', URL + MARKERS, true);
+        } else {
+            xhr.open('GET', URL + STATS, true);
+        }
+        
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send();
+
         xhr.onload = function() {
             if (xhr && xhr.status === 200 && xhr.readyState === 4) {
                 try {
@@ -93,7 +133,19 @@ function mcRequest() {
                     cache = [];
                     return;
                 }
+
                 then = new Date().getTime();
+
+                if (!type) {
+                    markers_cache = cache;
+                    markers_then = then;
+                    got_markers_data = true;
+                } else {
+                    stats_cache = cache;
+                    stats_then = then;
+                    got_stats_data = true;
+                }
+
                 resolve(cache);
             }
         };
@@ -111,10 +163,6 @@ function mcRequest() {
             sendmcError(err_connection_timed_out, current_id, true);
             return;
         }
-
-        xhr.open('GET', URL, true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.send();
     });
 }
 
@@ -137,30 +185,64 @@ function mcCalculateDistance(mc_location, current_loc) {
     return R * c;
 }
 
-function format_and_send(result, id) {
+function format_and_send(type, result, id) {
     let index = 0;
 
     const message = [];
-    const keys = [ 'dot', 'city', 'street', 'last_checked' ];
     
-    result.forEach(feature => {
-        if (feature.properties) {
-            message.push(feature.properties);
-        } 
-    });
+    const keys_markers = [ 'dot', 'city', 'street', 'last_checked' ];
+    const keys_stats = [ 'city', 'broken', 'total_locations' ];
+
+    var keys = [];
+    var mc_message_string = [];
+
+    switch (type) {
+        case 0:
+            keys = keys_markers;
+            mc_message_string = "mc_marker_data";
+            result.forEach(feature => {
+                if (feature.properties) {
+                    message.push(feature.properties);
+                }
+            });
+            break;
+        case 1:
+            keys = keys_stats;
+            mc_message_string = "mc_stat_data";
+            
+            result.forEach(city => {
+                message.push(city);
+            });
+            break;
+    }
     
     const filtered_message = message.map(obj => {
         const new_message = {};
 
         keys.forEach(key => {
             if (obj.hasOwnProperty(key)) {
-                new_message[key] = obj[key].toString();
+                if (key === 'total_locations') {
+                    var location_int = parseInt(obj[key]);
+                    if (isNaN(location_int)) {
+                        new_message[key] = 0;
+                    } else {
+                        new_message[key] = location_int;
+                    }
+                } else {
+                    new_message[key] = obj[key].toString();
+                }
             } else {
-                new_message[key] = `no ${[key]}`;
+                if (key === 'total_locations') {
+                    new_message[key] = 0;
+                } else if (key === 'broken') {
+                    new_message[key] = '0';
+                } else {
+                    new_message[key] = `no ${[key]}`;
+                }
             }
         });
-        
-        new_message['mc_message'] = "mc_data";
+
+        new_message['mc_message'] = mc_message_string;
         new_message['index'] = index;
         new_message['count'] = message.length;
         new_message['id'] = id;
@@ -207,7 +289,7 @@ function fetch_mcdata_and_sort_by_saved(id) {
     
     const streets = streets_input.filter(Boolean);
 
-    mcRequest()
+    mcRequest(request.type_markers)
         .then(function(mcdata) {
             if (id !== current_id) return;
 
@@ -239,7 +321,7 @@ function fetch_mcdata_and_sort_by_saved(id) {
         
             const results_sliced = new Set(results.slice(0, max_saved_mc_count));
 
-            format_and_send(results_sliced, id);
+            format_and_send(0, results_sliced, id);
         });
 }
 
@@ -247,7 +329,7 @@ function fetch_mcdata_and_sort_by_location(coords, id) {
     let radius = 8.04672
     let max_nearby_mc_count = 5
 
-    mcRequest()
+    mcRequest(request.type_markers)
         .then(function(mcdata) {
             if (id !== current_id) return;
 
@@ -273,7 +355,7 @@ function fetch_mcdata_and_sort_by_location(coords, id) {
         
             const results_sliced = new Set(results.slice(0, max_nearby_mc_count));
     
-            format_and_send(results_sliced, id);
+            format_and_send(request.type_markers, results_sliced, id);
         });
 }
 
@@ -297,10 +379,48 @@ function start_mc_gps(id) {
     
     id_gps = id;
 
-    mcRequest()
+    mcRequest(request.type_markers)
         .then(function() {
             if (id !== current_id) return;
             navigator.geolocation.getCurrentPosition(gps_success, gps_error, gps_options);
+        });
+}
+
+function fetch_mcdata_stats(id) {
+    let mc_stat_count;
+
+    try {
+        var settings = JSON.parse(localStorage.getItem("clay-settings"));
+    } catch (error) {
+        console.log(error);
+    }
+    
+    if (!settings || !settings.mc_stat_count) {
+        mc_stat_count = 15;
+    } else {
+        mc_stat_count = settings.mc_stat_count;
+    }
+
+    mcRequest(request.type_stats)
+        .then(function(mcdata) {
+            const results = [];
+
+            if (mcdata.broken) {
+                results.push({
+                    city: 'Currently Broken',
+                    broken: mcdata.broken
+                });
+            }
+            
+            if (mcdata.cities) {
+                mcdata.cities.forEach(city => {
+                    results.push(city);
+                });
+            }
+            
+            const results_sliced = new Set(results.slice(0, mc_stat_count));            
+
+            format_and_send(request.type_stats, results_sliced, id);
         });
 }
 
@@ -330,6 +450,9 @@ Pebble.addEventListener("appmessage", function(e) {
             break;
         case 1:
             fetch_mcdata_and_sort_by_saved(e.payload.id);
+            break;
+        case 2:
+            fetch_mcdata_stats(e.payload.id);
             break;
     }
 });

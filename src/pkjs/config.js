@@ -50,6 +50,16 @@ module.exports = [
           "limit": 90
         }
       },
+      {
+        "type": "slider",
+        "messageKey": "mc_stat_count",
+        "defaultValue": 15,
+        "label": "Number of Stats",
+        "description": "Number of Stats",
+        "min": 6,
+        "max": 31,
+        "step": 1
+      },
     ]
   },
   {

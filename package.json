@@ -106,6 +106,8 @@
     "messageKeys": [
       "dot",
       "city",
+      "broken",
+      "total_locations",
       "street",
       "last_checked",
       "mc_message",
