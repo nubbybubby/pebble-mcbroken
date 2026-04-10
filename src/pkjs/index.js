@@ -22,17 +22,19 @@ let stats_cache = [];
 let markers_then = [];
 let stats_then = [];
 
-const err_connection_timed_out = "mcConnection timed out."
-const err_could_not_connect = "Could not connect to mcbroken."
-const err_could_not_parse = "Could not parse mcData."
-const err_no_gps = "Could not get location."
-const err_no_loc_saved = "No locations saved!"
-const err_no_loc_found = "No locations found!"
+const error = Object.freeze({
+    connection_timed_out: "mcConnection timed out.",
+    could_not_connect: "Could not connect to mcbroken.",
+    could_not_parse: "Could not parse mcData.",
+    no_gps: "Could not get location.",
+    no_loc_saved: "No locations saved!",
+    no_loc_found: "No locations found!"
+});
 
-const request = {
+const request = Object.freeze({
     type_markers: 0,
     type_stats: 1
-};
+});
 
 const not_found_feature = {
     geometry: { coordinates: [0,0], type: 'Point' },
@@ -129,7 +131,7 @@ function mcRequest(type) {
                     cache = JSON.parse(xhr.responseText);
                 } catch (error) {
                     console.log(error);
-                    sendmcError(err_could_not_parse, current_id, true);
+                    sendmcError(error.could_not_parse, current_id, true);
                     cache = [];
                     return;
                 }
@@ -151,16 +153,16 @@ function mcRequest(type) {
         };
         xhr.onloadend = function() {
             if (xhr && xhr.status == 404) {
-                sendmcError(err_could_not_connect, current_id, true);
+                sendmcError(error.could_not_connect, current_id, true);
                 return;
             }
         }
         xhr.onerror = function() {
-            sendmcError(err_could_not_connect, current_id, true);
+            sendmcError(error.could_not_connect, current_id, true);
             return;
         }
         xhr.ontimeout = function() {
-            sendmcError(err_connection_timed_out, current_id, true);
+            sendmcError(error.connection_timed_out, current_id, true);
             return;
         }
     });
@@ -254,7 +256,7 @@ function format_and_send(type, result, id) {
     if (message.length > 0) {
         mcSend(filtered_message, id);
     } else {
-        sendmcError(err_no_loc_found, id); 
+        sendmcError(error.no_loc_found, id); 
     }
 }
 
@@ -268,7 +270,7 @@ function fetch_mcdata_and_sort_by_saved(id) {
     }
     
     if (!settings) {
-        sendmcError(err_no_loc_saved, id);
+        sendmcError(error.no_loc_saved, id);
         return;
     }
 
@@ -281,7 +283,7 @@ function fetch_mcdata_and_sort_by_saved(id) {
     ];
 
     if (streets_input_arr.every(element => element === "")) {
-        sendmcError(err_no_loc_saved, id); 
+        sendmcError(error.no_loc_saved, id); 
         return;
     }
 
@@ -367,7 +369,7 @@ function gps_success(pos) {
 
 function gps_error(err) {
     if (id_gps !== current_id) return;
-    sendmcError(err_no_gps, id_gps);
+    sendmcError(error.no_gps, id_gps);
 }
 
 function start_mc_gps(id) {
