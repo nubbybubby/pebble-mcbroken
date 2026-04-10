@@ -398,7 +398,7 @@ function fetch_mcdata_stats(id) {
     }
     
     if (!settings || !settings.mc_stat_count) {
-        mc_stat_count = 15;
+        mc_stat_count = 16;
     } else {
         mc_stat_count = settings.mc_stat_count;
     }
