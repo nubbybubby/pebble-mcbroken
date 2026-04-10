@@ -408,7 +408,8 @@ function fetch_mcdata_stats(id) {
             if (mcdata.broken) {
                 results.push({
                     city: 'Currently Broken',
-                    broken: mcdata.broken
+                    broken: mcdata.broken,
+                    total_locations: 0
                 });
             }
             

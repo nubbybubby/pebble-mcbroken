@@ -315,14 +315,15 @@ static void draw_mc_row_callback(GContext *ctx, const Layer *cell_layer, MenuInd
             break;
         case 2:
                 
-        if (!cell_index->row) {
+        if (!mc_stat_structs[cell_index->row].TOTAL_LOCATIONS) {
             snprintf(final_mc_dot, sizeof(final_mc_dot), "%s", mc_stat_city);
         } else {
             snprintf(final_mc_dot, sizeof(final_mc_dot), "in %s", mc_stat_city);
         }
         
         if (switch_stat_buff && mc_rest_selected == cell_index->row) {
-            snprintf(final_broken_perc, sizeof(final_broken_perc), "%i Locations", mc_stat_structs[cell_index->row].TOTAL_LOCATIONS);
+            snprintf(final_broken_perc, sizeof(final_broken_perc), 
+                        "%i Locations", mc_stat_structs[cell_index->row].TOTAL_LOCATIONS);
         } else {
             snprintf(final_broken_perc, sizeof(final_broken_perc), "%s%%", mc_stat_broken);
         }
