@@ -8,8 +8,8 @@ var URL = 'https://data.mcbroken.com'
 var MARKERS = '/markers.json'
 var STATS = '/stats.json'
 
-var got_markers_data;
-var got_stats_data;
+var xhr_markers;
+var xhr_stats;
 
 var id_gps;
 var current_id;
@@ -68,10 +68,7 @@ function mcSend(messages, id) {
     }, 50);
 }
 
-function sendmcError(error_message, id, undefine_xhr) {
-    if (undefine_xhr) {
-        xhr = undefined;
-    }
+function sendmcError(error_message, id) {
     const message = { 
         'mc_message': "mc_error",
         'error': error_message,
@@ -80,6 +77,14 @@ function sendmcError(error_message, id, undefine_xhr) {
     if (id !== current_id) return;
     Pebble.sendAppMessage(message);
     current_id = 0;
+}
+
+function undefine_xhr(type) {
+    if (!type) {
+        xhr_markers = undefined;
+    } else {
+        xhr_stats = undefined;
+    }
 }
 
 function mcRequest(type) {
@@ -100,28 +105,22 @@ function mcRequest(type) {
         if (Object.keys(cache).length > 0 && now - then < cache_max_age * 1000) {
             resolve(cache);
         } else if (Object.keys(cache).length > 0 && now - then >= cache_max_age * 1000) {
-            if (!type) {
-                got_markers_data = false;
-            } else {
-                got_stats_data = false;
-            }
+            undefine_xhr(type);
         }
         
         if (!type) {
-            if (got_markers_data) return;
-        } else {
-            if (got_stats_data) return;
-        }
-
-        var xhr = new XMLHttpRequest();
-        xhr.timeout = 10000;
-
-        if (!type) {
+            if (xhr_markers) return;
+            xhr_markers = new XMLHttpRequest();
+            var xhr = xhr_markers;
             xhr.open('GET', URL + MARKERS, true);
         } else {
+            if (xhr_stats) return;
+            xhr_stats = new XMLHttpRequest();
+            var xhr = xhr_stats;
             xhr.open('GET', URL + STATS, true);
         }
-        
+
+        xhr.timeout = 10000;                
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.send();
 
@@ -131,7 +130,8 @@ function mcRequest(type) {
                     cache = JSON.parse(xhr.responseText);
                 } catch (error) {
                     console.log(error);
-                    sendmcError(error.could_not_parse, current_id, true);
+                    sendmcError(error.could_not_parse, current_id);
+                    undefine_xhr(type);
                     cache = [];
                     return;
                 }
@@ -141,11 +141,9 @@ function mcRequest(type) {
                 if (!type) {
                     markers_cache = cache;
                     markers_then = then;
-                    got_markers_data = true;
                 } else {
                     stats_cache = cache;
                     stats_then = then;
-                    got_stats_data = true;
                 }
 
                 resolve(cache);
@@ -153,16 +151,19 @@ function mcRequest(type) {
         };
         xhr.onloadend = function() {
             if (xhr && xhr.status == 404) {
-                sendmcError(error.could_not_connect, current_id, true);
+                sendmcError(error.could_not_connect, current_id);
+                undefine_xhr(type);
                 return;
             }
         }
         xhr.onerror = function() {
-            sendmcError(error.could_not_connect, current_id, true);
+            sendmcError(error.could_not_connect, current_id);
+            undefine_xhr(type);
             return;
         }
         xhr.ontimeout = function() {
-            sendmcError(error.connection_timed_out, current_id, true);
+            sendmcError(error.connection_timed_out, current_id);
+            undefine_xhr(type);
             return;
         }
     });
