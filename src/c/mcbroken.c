@@ -167,17 +167,26 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
         return;
     }
     
-    Tuple *city_t = dict_find(iterator, MESSAGE_KEY_city);
+    is_ready = true;
+        
     Tuple *id_t = dict_find(iterator, MESSAGE_KEY_id);
+
+    if (!is_loading || id_t->value->int16 != id) {
+        return;
+    }
+    
+    if (strcmp(mc_message_t->value->cstring, "mc_error") == 0) {
+        Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
+        display_error(error_t->value->cstring);
+    }
+
+    cancel_timers();
+
+    Tuple *city_t = dict_find(iterator, MESSAGE_KEY_city);
     Tuple *index_t = dict_find(iterator, MESSAGE_KEY_index);
     Tuple *count_t = dict_find(iterator, MESSAGE_KEY_count);
 
-    if (strcmp(mc_message_t->value->cstring, "mc_ready") == 0) {
-        is_ready = true;
-    } else if (strcmp(mc_message_t->value->cstring, "mc_marker_data") == 0 && is_loading && id_t->value->int16 == id) {
-        is_ready = true;
-        cancel_timers();
-
+    if (strcmp(mc_message_t->value->cstring, "mc_marker_data") == 0) {
         Tuple *street_t = dict_find(iterator, MESSAGE_KEY_street);
         Tuple *last_checked_t = dict_find(iterator, MESSAGE_KEY_last_checked);
         Tuple *dot_t = dict_find(iterator, MESSAGE_KEY_dot);
@@ -213,10 +222,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
             
             loadinator(index_t->value->int8);
         }
-    } else if (strcmp(mc_message_t->value->cstring, "mc_stat_data") == 0 && is_loading && id_t->value->int16 == id) {
-        is_ready = true;
-        cancel_timers();
-
+    } else if (strcmp(mc_message_t->value->cstring, "mc_stat_data") == 0) {
         Tuple *broken_t = dict_find(iterator, MESSAGE_KEY_broken);
         Tuple *total_locations_t = dict_find(iterator, MESSAGE_KEY_total_locations);
     
@@ -243,10 +249,6 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
  
             loadinator(index_t->value->int8);
         }
-    } else if (strcmp(mc_message_t->value->cstring, "mc_error") == 0 && is_loading && id_t->value->int16 == id) {
-        is_ready = true;
-        Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
-        display_error(error_t->value->cstring);
     }
 }
 
