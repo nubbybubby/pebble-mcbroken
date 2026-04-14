@@ -13,6 +13,7 @@ var xhr_stats;
 
 var id_gps;
 var current_id;
+var mc_selected;
 var send_id;
 
 let cache_max_age = 60 // seconds
@@ -76,94 +77,125 @@ function sendmcError(error_message, id) {
     };
     if (id !== current_id) return;
     Pebble.sendAppMessage(message);
-    current_id = 0;
 }
 
-function undefine_xhr(type) {
-    if (!type) {
-        xhr_markers = undefined;
-    } else {
-        xhr_stats = undefined;
-    }
-}
-
-function mcRequest(type) {
+function mcRequestMarkers(id) {
     return new Promise((resolve) => { 
         const now = new Date().getTime();
 
-        let cache = [];
-        let then = [];
-
-        if (!type) {
-            cache = markers_cache;
-            then = markers_then;
-        } else {
-            cache = stats_cache;
-            then = stats_then;
-        }
-
-        if (Object.keys(cache).length > 0 && now - then < cache_max_age * 1000) {
-            resolve(cache);
-        } else if (Object.keys(cache).length > 0 && now - then >= cache_max_age * 1000) {
-            undefine_xhr(type);
+        if (Object.keys(markers_cache).length > 0 && now - markers_then < cache_max_age * 1000) {
+            resolve(markers_cache);
+        } else if (Object.keys(markers_cache).length > 0 && now - markers_then >= cache_max_age * 1000) {
+            xhr_markers = undefined;
         }
         
-        if (!type) {
-            if (xhr_markers) return;
-            xhr_markers = new XMLHttpRequest();
-            var xhr = xhr_markers;
-            xhr.open('GET', URL + MARKERS, true);
-        } else {
-            if (xhr_stats) return;
-            xhr_stats = new XMLHttpRequest();
-            var xhr = xhr_stats;
-            xhr.open('GET', URL + STATS, true);
-        }
+        if (xhr_markers) return;
+        xhr_markers = new XMLHttpRequest();
+        xhr_markers.open('GET', URL + MARKERS, true);
 
-        xhr.timeout = 10000;                
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.send();
+        xhr_markers.timeout = 10000;                
+        xhr_markers.setRequestHeader('Content-Type', 'application/json');
+        xhr_markers.send();
 
-        xhr.onload = function() {
-            if (xhr && xhr.status === 200 && xhr.readyState === 4) {
+        xhr_markers.onload = function() {
+            if (xhr_markers && xhr_markers.status === 200 && xhr_markers.readyState === 4) {
                 try {
-                    cache = JSON.parse(xhr.responseText);
+                    markers_cache = JSON.parse(xhr_markers.responseText);
                 } catch (error) {
                     console.log(error);
                     sendmcError(error.could_not_parse, current_id);
-                    undefine_xhr(type);
+                    xhr_markers = undefined;
                     cache = [];
                     return;
                 }
 
-                then = new Date().getTime();
+                markers_then = new Date().getTime();
 
-                if (!type) {
-                    markers_cache = cache;
-                    markers_then = then;
-                } else {
-                    stats_cache = cache;
-                    stats_then = then;
+                /* hacky workaround, but whatever */
+                if (current_id !== id && id) {
+                    mcLoad();
+                    return;
                 }
 
-                resolve(cache);
+                resolve(markers_cache);
             }
         };
-        xhr.onloadend = function() {
-            if (xhr && xhr.status == 404) {
+        xhr_markers.onloadend = function() {
+            if (xhr_markers && xhr_markers.status == 404) {
                 sendmcError(error.could_not_connect, current_id);
-                undefine_xhr(type);
+                xhr_markers = undefined;
                 return;
             }
         }
-        xhr.onerror = function() {
+        xhr_markers.onerror = function() {
             sendmcError(error.could_not_connect, current_id);
-            undefine_xhr(type);
+            xhr_markers = undefined;
             return;
         }
-        xhr.ontimeout = function() {
+        xhr_markers.ontimeout = function() {
             sendmcError(error.connection_timed_out, current_id);
-            undefine_xhr(type);
+            xhr_markers = undefined;
+            return;
+        }
+    });
+}
+
+function mcRequestStats(id) {
+    return new Promise((resolve) => { 
+        const now = new Date().getTime();
+
+        if (Object.keys(stats_cache).length > 0 && now - stats_then < cache_max_age * 1000) {
+            resolve(stats_cache);
+        } else if (Object.keys(stats_cache).length > 0 && now - stats_then >= cache_max_age * 1000) {
+            xhr_stats = undefined;
+        }
+        
+        if (xhr_stats) return;
+        xhr_stats = new XMLHttpRequest();
+        xhr_stats.open('GET', URL + STATS, true);
+
+        xhr_stats.timeout = 10000;                
+        xhr_stats.setRequestHeader('Content-Type', 'application/json');
+        xhr_stats.send();
+
+        xhr_stats.onload = function() {
+            if (xhr_stats && xhr_stats.status === 200 && xhr_stats.readyState === 4) {
+                try {
+                    stats_cache = JSON.parse(xhr_stats.responseText);
+                } catch (error) {
+                    console.log(error);
+                    sendmcError(error.could_not_parse, current_id);
+                    xhr_stats = undefined;
+                    stats_cache = [];
+                    return;
+                }
+
+                stats_then = new Date().getTime();
+
+                /* hacky workaround, but whatever */
+                if (current_id !== id && id) {
+                    mcLoad();
+                    return;
+                }
+
+                resolve(stats_cache);
+            }
+        };
+        xhr_stats.onloadend = function() {
+            if (xhr_stats && xhr_stats.status == 404) {
+                sendmcError(error.could_not_connect, current_id);
+                xhr_stats = undefined;
+                return;
+            }
+        }
+        xhr_stats.onerror = function() {
+            sendmcError(error.could_not_connect, current_id);
+            xhr_stats = undefined;
+            return;
+        }
+        xhr_stats.ontimeout = function() {
+            sendmcError(error.connection_timed_out, current_id);
+            xhr_stats = undefined;
             return;
         }
     });
@@ -292,7 +324,7 @@ function fetch_mcdata_and_sort_by_saved(id) {
     
     const streets = streets_input.filter(Boolean);
 
-    mcRequest(request.type_markers)
+    mcRequestMarkers(id)
         .then(function(mcdata) {
             if (id !== current_id) return;
 
@@ -332,7 +364,7 @@ function fetch_mcdata_and_sort_by_location(coords, id) {
     let radius = 8.04672
     let max_nearby_mc_count = 5
 
-    mcRequest(request.type_markers)
+    mcRequestMarkers(id)
         .then(function(mcdata) {
             if (id !== current_id) return;
 
@@ -382,7 +414,7 @@ function start_mc_gps(id) {
     
     id_gps = id;
 
-    mcRequest(request.type_markers)
+    mcRequestMarkers(id)
         .then(function() {
             if (id !== current_id) return;
             navigator.geolocation.getCurrentPosition(gps_success, gps_error, gps_options);
@@ -404,7 +436,7 @@ function fetch_mcdata_stats(id) {
         mc_stat_count = settings.mc_stat_count;
     }
 
-    mcRequest(request.type_stats)
+    mcRequestStats(id)
         .then(function(mcdata) {
             const results = [];
 
@@ -448,15 +480,20 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
 Pebble.addEventListener("appmessage", function(e) {
     current_id = e.payload.id;
-    switch (e.payload.mc_message) {
+    mc_selected = e.payload.mc_message;
+    mcLoad();
+});
+
+function mcLoad() {
+    switch (mc_selected) {
         case 0:
-            start_mc_gps(e.payload.id);
+        start_mc_gps(current_id);
             break;
         case 1:
-            fetch_mcdata_and_sort_by_saved(e.payload.id);
+        fetch_mcdata_and_sort_by_saved(current_id);
             break;
         case 2:
-            fetch_mcdata_stats(e.payload.id);
+        fetch_mcdata_stats(current_id);
             break;
     }
-});
+}
