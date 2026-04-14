@@ -171,11 +171,14 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
         
     Tuple *id_t = dict_find(iterator, MESSAGE_KEY_id);
 
-    if (!is_loading || id_t->value->int16 != id) {
+    if (!is_loading || id_t->value->int16 != id || is_on_error) {
         return;
     }
     
     if (strcmp(mc_message_t->value->cstring, "mc_error") == 0) {
+        if (mc_structs[0].is_populated || mc_stat_structs[0].is_populated) {
+            return;
+        }
         Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
         display_error(error_t->value->cstring);
     }
