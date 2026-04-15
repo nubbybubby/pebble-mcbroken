@@ -41,7 +41,7 @@ typedef struct {
 } mc_struct;
 
 typedef struct {
-    char CITY[20];
+    char CITY[30];
     char BROKEN[8];
     uint8_t TOTAL_LOCATIONS;
     bool is_populated;
@@ -329,9 +329,9 @@ static void draw_mc_row_callback(GContext *ctx, const Layer *cell_layer, MenuInd
         case 2:
                 
         if (!mc_stat_structs[cell_index->row].TOTAL_LOCATIONS) {
-            snprintf(final_mc_dot, sizeof(final_mc_dot), "%s", mc_stat_city);
+            snprintf(final_mc_dot, sizeof(mc_stat_structs[cell_index->row].CITY), "%s", mc_stat_city);
         } else {
-            snprintf(final_mc_dot, sizeof(final_mc_dot), "in %s", mc_stat_city);
+            snprintf(final_mc_dot, sizeof("in %s") + sizeof(mc_stat_structs[cell_index->row].CITY), "in %s", mc_stat_city);
         }
         
         if (switch_stat_buff && mc_rest_selected == cell_index->row) {
