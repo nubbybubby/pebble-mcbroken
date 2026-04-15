@@ -13,6 +13,7 @@ var xhr_stats;
 
 var id_gps;
 var current_id;
+var current_request;
 var mc_selected;
 var send_id;
 
@@ -69,9 +70,15 @@ function mcSend(messages, id) {
     }, 50);
 }
 
-function sendmcError(error_message, id) {
+function sendmcError(type, error_message, id) {
+    var mc_error_type;
+    if (!type) {
+        mc_error_type = "mc_marker_error";
+    } else {
+        mc_error_type = "mc_stat_error";
+    }
     const message = { 
-        'mc_message': "mc_error",
+        'mc_message': mc_error_type,
         'error': error_message,
         'id': id
     };
@@ -103,7 +110,7 @@ function mcRequestMarkers(id) {
                     markers_cache = JSON.parse(xhr_markers.responseText);
                 } catch (error) {
                     console.log(error);
-                    sendmcError(error.could_not_parse, current_id);
+                    sendmcError(request.type_markers, error.could_not_parse, current_id);
                     xhr_markers = undefined;
                     cache = [];
                     return;
@@ -122,18 +129,18 @@ function mcRequestMarkers(id) {
         };
         xhr_markers.onloadend = function() {
             if (xhr_markers && xhr_markers.status == 404) {
-                sendmcError(error.could_not_connect, current_id);
+                sendmcError(request.type_markers, error.could_not_connect, current_id);
                 xhr_markers = undefined;
                 return;
             }
         }
         xhr_markers.onerror = function() {
-            sendmcError(error.could_not_connect, current_id);
+            sendmcError(request.type_markers, error.could_not_connect, current_id);
             xhr_markers = undefined;
             return;
         }
         xhr_markers.ontimeout = function() {
-            sendmcError(error.connection_timed_out, current_id);
+            sendmcError(request.type_markers, error.connection_timed_out, current_id);
             xhr_markers = undefined;
             return;
         }
@@ -164,7 +171,7 @@ function mcRequestStats(id) {
                     stats_cache = JSON.parse(xhr_stats.responseText);
                 } catch (error) {
                     console.log(error);
-                    sendmcError(error.could_not_parse, current_id);
+                    sendmcError(request.type_stats, error.could_not_parse, current_id);
                     xhr_stats = undefined;
                     stats_cache = [];
                     return;
@@ -183,18 +190,18 @@ function mcRequestStats(id) {
         };
         xhr_stats.onloadend = function() {
             if (xhr_stats && xhr_stats.status == 404) {
-                sendmcError(error.could_not_connect, current_id);
+                sendmcError(request.type_stats, error.could_not_connect, current_id);
                 xhr_stats = undefined;
                 return;
             }
         }
         xhr_stats.onerror = function() {
-            sendmcError(error.could_not_connect, current_id);
+            sendmcError(request.type_stats, error.could_not_connect, current_id);
             xhr_stats = undefined;
             return;
         }
         xhr_stats.ontimeout = function() {
-            sendmcError(error.connection_timed_out, current_id);
+            sendmcError(request.type_stats, error.connection_timed_out, current_id);
             xhr_stats = undefined;
             return;
         }
@@ -289,7 +296,7 @@ function format_and_send(type, result, id) {
     if (message.length > 0) {
         mcSend(filtered_message, id);
     } else {
-        sendmcError(error.no_loc_found, id); 
+        sendmcError(current_request, error.no_loc_found, id); 
     }
 }
 
@@ -303,7 +310,7 @@ function fetch_mcdata_and_sort_by_saved(id) {
     }
     
     if (!settings) {
-        sendmcError(error.no_loc_saved, id);
+        sendmcError(request.type_markers, error.no_loc_saved, id);
         return;
     }
 
@@ -316,7 +323,7 @@ function fetch_mcdata_and_sort_by_saved(id) {
     ];
 
     if (streets_input_arr.every(element => element === "")) {
-        sendmcError(error.no_loc_saved, id); 
+        sendmcError(request.type_markers, error.no_loc_saved, id); 
         return;
     }
 
@@ -402,7 +409,7 @@ function gps_success(pos) {
 
 function gps_error(err) {
     if (id_gps !== current_id) return;
-    sendmcError(error.no_gps, id_gps);
+    sendmcError(request.type_markers, error.no_gps, id_gps);
 }
 
 function start_mc_gps(id) {
@@ -488,12 +495,15 @@ function mcLoad() {
     switch (mc_selected) {
         case 0:
         start_mc_gps(current_id);
+        current_request = request.type_markers;
             break;
         case 1:
         fetch_mcdata_and_sort_by_saved(current_id);
+        current_request = request.type_markers;
             break;
         case 2:
         fetch_mcdata_stats(current_id);
+        current_request = request.type_stats;
             break;
     }
 }

@@ -175,15 +175,19 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
         return;
     }
     
-    if (strcmp(mc_message_t->value->cstring, "mc_error") == 0) {
-        if (mc_structs[0].is_populated || mc_stat_structs[0].is_populated) {
+    Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
+
+    if (strcmp(mc_message_t->value->cstring, "mc_marker_error") == 0 && mc_menu_selected < 2) {
+        if (mc_structs[0].is_populated) {
             return;
         }
-        Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
+        display_error(error_t->value->cstring);
+    } else if (strcmp(mc_message_t->value->cstring, "mc_stat_error") == 0 && mc_menu_selected >= 2) {
+        if (mc_stat_structs[0].is_populated) {
+            return;
+        }
         display_error(error_t->value->cstring);
     }
-
-    cancel_timers();
 
     Tuple *city_t = dict_find(iterator, MESSAGE_KEY_city);
     Tuple *index_t = dict_find(iterator, MESSAGE_KEY_index);
@@ -193,6 +197,8 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
         Tuple *street_t = dict_find(iterator, MESSAGE_KEY_street);
         Tuple *last_checked_t = dict_find(iterator, MESSAGE_KEY_last_checked);
         Tuple *dot_t = dict_find(iterator, MESSAGE_KEY_dot);
+        
+        cancel_timers();
 
         if (count_t->value->int8 <= MAX_MC_COUNT) {
             mc_count = count_t->value->int8;
@@ -229,6 +235,8 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
         Tuple *broken_t = dict_find(iterator, MESSAGE_KEY_broken);
         Tuple *total_locations_t = dict_find(iterator, MESSAGE_KEY_total_locations);
     
+        cancel_timers();
+
         if (count_t->value->int8 <= MAX_MC_STAT_COUNT) {
             mc_count = count_t->value->int8;
         } else {
