@@ -295,7 +295,7 @@ static void draw_mc_row_callback(GContext *ctx, const Layer *cell_layer, MenuInd
     char *mc_stat_city = mc_stat_structs[cell_index->row].CITY;
     char *mc_stat_broken = mc_stat_structs[cell_index->row].BROKEN;
 
-    char final_mc_dot[30];
+    char final_mc_dot[35];
     char final_broken_perc[15];
 
     #if PBL_DISPLAY_HEIGHT == 168
