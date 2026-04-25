@@ -2,7 +2,7 @@
 
 A mcbroken client for pebble smartwatches.
 
-![Basalt](screenshots/color_nearby.png) ![Aplite/Diorite](screenshots/bw_saved.png)
+![Emery](screenshots/color_emery_nearby.png) ![Basalt](screenshots/color_nearby.png) ![Aplite/Diorite](screenshots/bw_saved.png)
 
 Now you can conveniently check if the ice cream machine is broken on your wrist!
 
