@@ -147,9 +147,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
     Tuple *mc_refresh_t = dict_find(iterator, MESSAGE_KEY_mc_refresh);
 
     if (mc_refresh_t) {
-        if (!mc_menu_selected || !is_ready || is_loading) {
-            return;
-        }
+        if (!mc_menu_selected || !is_ready || is_loading) return;
         if (window_stack_contains_window(mc_restaurant_window)) {
             window_stack_remove(mc_more_details_window, false);
             window_stack_remove(mc_restaurant_window, false);
@@ -163,29 +161,21 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
         }
     }
 
-    if (!mc_message_t) {
-        return;
-    }
+    if (!mc_message_t) return;
     
     is_ready = true;
         
     Tuple *id_t = dict_find(iterator, MESSAGE_KEY_id);
 
-    if (!is_loading || id_t->value->int16 != id || is_on_error) {
-        return;
-    }
+    if (!is_loading || id_t->value->int16 != id || is_on_error) return;
     
     Tuple *error_t = dict_find(iterator, MESSAGE_KEY_error);
 
     if (strcmp(mc_message_t->value->cstring, "mc_marker_error") == 0 && mc_menu_selected < 2) {
-        if (mc_structs[0].is_populated) {
-            return;
-        }
+        if (mc_structs[0].is_populated) return;
         display_error(error_t->value->cstring);
     } else if (strcmp(mc_message_t->value->cstring, "mc_stat_error") == 0 && mc_menu_selected >= 2) {
-        if (mc_stat_structs[0].is_populated) {
-            return;
-        }
+        if (mc_stat_structs[0].is_populated) return;
         display_error(error_t->value->cstring);
     }
 
