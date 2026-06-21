@@ -40,66 +40,106 @@
         {
           "type": "bitmap",
           "name": "IMAGE_WORKING",
-          "file": "images/circle.png"
+          "file": "images/circle.png",
+          "targetPlatforms": [
+            "basalt"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_BROKEN",
-          "file": "images/x.png"
+          "file": "images/x.png",
+          "targetPlatforms": [
+            "basalt"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_INACTIVE",
-          "file": "images/inac.png"
+          "file": "images/inac.png",
+          "targetPlatforms": [
+            "basalt"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_WORKING_HIRES",
-          "file": "images/circle_hires.png"
+          "file": "images/circle_hires.png",
+          "targetPlatforms": [
+            "emery"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_BROKEN_HIRES",
-          "file": "images/x_hires.png"
+          "file": "images/x_hires.png",
+          "targetPlatforms": [
+            "emery"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_INACTIVE_HIRES",
-          "file": "images/inac_hires.png"
+          "file": "images/inac_hires.png",
+          "targetPlatforms": [
+            "emery"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_WORKING_BW",
           "file": "images/circle_bw.png",
-          "memoryFormat": "1Bit"
+          "memoryFormat": "1Bit",
+          "targetPlatforms": [
+            "aplite",
+            "diorite"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_BROKEN_BW",
           "file": "images/x_bw.png",
-          "memoryFormat": "1Bit"
+          "memoryFormat": "1Bit",
+          "targetPlatforms": [
+            "aplite",
+            "diorite"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_INACTIVE_BW",
           "file": "images/inac_bw.png",
-          "memoryFormat": "1Bit"
+          "memoryFormat": "1Bit",
+          "targetPlatforms": [
+            "aplite",
+            "diorite"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_MCHADIT",
-          "file": "images/mchadit.png"
+          "file": "images/mchadit.png",
+          "targetPlatforms": [
+            "basalt"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_MCHADIT_HIRES",
-          "file": "images/mchadit_hires.png"
+          "file": "images/mchadit_hires.png",
+          "targetPlatforms": [
+            "emery"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_MCHADIT_BW",
           "file": "images/mchadit_bw.png",
-          "memoryFormat": "1Bit"
+          "memoryFormat": "1Bit",
+          "targetPlatforms": [
+            "aplite",
+            "diorite"
+          ]
         }
       ]
     },
